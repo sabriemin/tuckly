@@ -381,3 +381,63 @@ def recent_dir() -> Path:
         return d
     import os
     return Path(os.environ.get("APPDATA", str(Path.home()))) / "Microsoft" / "Windows" / "Recent"
+
+
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [("biSize", wintypes.DWORD), ("biWidth", wintypes.LONG), ("biHeight", wintypes.LONG),
+                ("biPlanes", wintypes.WORD), ("biBitCount", wintypes.WORD), ("biCompression", wintypes.DWORD),
+                ("biSizeImage", wintypes.DWORD), ("biXPelsPerMeter", wintypes.LONG),
+                ("biYPelsPerMeter", wintypes.LONG), ("biClrUsed", wintypes.DWORD), ("biClrImportant", wintypes.DWORD)]
+
+
+def capture_desktop():
+    """Masaüstü penceresinin (duvar kâğıdı ve simgeler; kartlar ve diğer pencereler olmadan) görüntüsü.
+    Dönüş: (BGRA baytları, genişlik, yükseklik, sol, üst) fiziksel piksel olarak; alınamazsa None."""
+    gdi32 = ctypes.windll.gdi32
+    hwnd = user32.FindWindowW("Progman", None)
+    if not hwnd:
+        return None
+    rect = wintypes.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+    w, h = rect.right - rect.left, rect.bottom - rect.top
+    if w <= 0 or h <= 0 or w * h > 120_000_000:
+        return None
+    for fn, res, args in ((user32.GetWindowDC, ctypes.c_void_p, [wintypes.HWND]),
+                          (gdi32.CreateCompatibleDC, ctypes.c_void_p, [ctypes.c_void_p]),
+                          (gdi32.CreateCompatibleBitmap, ctypes.c_void_p, [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]),
+                          (gdi32.SelectObject, ctypes.c_void_p, [ctypes.c_void_p, ctypes.c_void_p]),
+                          (gdi32.DeleteObject, wintypes.BOOL, [ctypes.c_void_p]),
+                          (gdi32.DeleteDC, wintypes.BOOL, [ctypes.c_void_p]),
+                          (user32.ReleaseDC, ctypes.c_int, [wintypes.HWND, ctypes.c_void_p]),
+                          (user32.PrintWindow, wintypes.BOOL, [wintypes.HWND, ctypes.c_void_p, wintypes.UINT])):
+        fn.restype, fn.argtypes = res, args
+    gdi32.GetDIBits.argtypes = [ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, wintypes.UINT, ctypes.c_void_p,
+                                ctypes.c_void_p, wintypes.UINT]
+    wdc = user32.GetWindowDC(hwnd)
+    mem = gdi32.CreateCompatibleDC(wdc)
+    bmp = gdi32.CreateCompatibleBitmap(wdc, w, h)
+    old = gdi32.SelectObject(mem, bmp)
+    try:
+        if not user32.PrintWindow(hwnd, mem, 2):  # PW_RENDERFULLCONTENT
+            return None
+        gdi32.SelectObject(mem, old)
+        info = BITMAPINFOHEADER()
+        info.biSize, info.biWidth, info.biHeight = ctypes.sizeof(info), w, -h  # eksi: üstten alta
+        info.biPlanes, info.biBitCount, info.biCompression = 1, 32, 0
+        buf = ctypes.create_string_buffer(w * h * 4)
+        if gdi32.GetDIBits(mem, bmp, 0, h, buf, ctypes.byref(info), 0) != h:
+            return None
+        return buf.raw, w, h, rect.left, rect.top
+    except OSError:
+        return None
+    finally:
+        gdi32.DeleteObject(bmp)
+        gdi32.DeleteDC(mem)
+        user32.ReleaseDC(hwnd, wdc)
+
+
+def window_rect(widget):
+    """Pencerenin ekrandaki yeri, fiziksel piksel olarak: (sol, üst, sağ, alt)."""
+    rect = wintypes.RECT()
+    user32.GetWindowRect(int(widget.winId()), ctypes.byref(rect))
+    return rect.left, rect.top, rect.right, rect.bottom

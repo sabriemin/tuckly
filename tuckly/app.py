@@ -8,8 +8,8 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QFileInfo, QFileSystemWatcher, QPoint, QTimer, QUrl, Qt
-from PySide6.QtGui import QColor, QCursor, QDesktopServices, QGuiApplication, QIcon
+from PySide6.QtCore import QFileInfo, QFileSystemWatcher, QPoint, QRectF, QTimer, QUrl, Qt
+from PySide6.QtGui import QImage, QPainter, QPainterPath, QColor, QCursor, QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileIconProvider, QMenu, QSystemTrayIcon
 
@@ -52,7 +52,7 @@ from .winapi import (
     set_file_hidden,
 )
 from .theme import appearance, base_style, make_app_icon, make_look
-from .winapi import fullscreen_busy, wallpaper_key
+from .winapi import capture_desktop, fullscreen_busy, wallpaper_key, window_rect
 from .widgets import StyleTile, Toggle
 from .card import FenceWindow
 from .notifications import AVAILABLE as BADGES_AVAILABLE, NotificationWatcher
@@ -77,6 +77,9 @@ class FencesApp:
         set_language(self.config.get("language"))  # None: Windows'un dili
         self.locked = self.config.get("locked", False)
         self.fences: list[FenceWindow] = []
+        # Cam kartların arkasına boyanan bulanık masaüstü görüntüsü: (görüntü, sol, üst, ölçek)
+        self.backdrop = None
+        self.refresh_backdrop(repaint=False)
         self.cards_hidden = False  # tüm kartlar geçici olarak gizli (çift tıklama / kısayol)
         self.fullscreen_hidden = False  # tam ekran uygulama çalıştığı için gizli
         self.picked = []  # Ctrl+tıkla seçilen kartlar: birlikte taşınır ve hizalanır
@@ -130,6 +133,10 @@ class FencesApp:
         self._look_timer = QTimer(singleShot=True, interval=25, timeout=self.apply_look)
         # Vurgu rengi duvar kâğıdından alınıyorsa, duvar kâğıdı değişince renk de yenilenir
         self._wallpaper = wallpaper_key()
+        self._backdrop_timer = QTimer(singleShot=True, interval=900, timeout=self.refresh_backdrop)
+        # Duvar kâğıdı slayt gösterisi gibi dosya adı değişmeden olan değişiklikler için ara sıra yenile
+        self._backdrop_poll = QTimer(interval=60000, timeout=self.refresh_backdrop)
+        self._backdrop_poll.start()
         self._wallpaper_timer = QTimer(interval=20000, timeout=self.check_wallpaper)
         self._wallpaper_timer.start()
         # Not hatırlatıcıları; Tuckly kapalıyken zamanı geçenler açılışta bildirilir
@@ -562,6 +569,8 @@ class FencesApp:
         self.save()
 
     def refresh_all(self):
+        if hasattr(self, "_backdrop_timer"):  # masaüstündeki simgeler değişmiş olabilir
+            self._backdrop_timer.start()
         for f in self.fences:
             if f.kind != "rest":
                 f.refresh()
@@ -1071,6 +1080,7 @@ class FencesApp:
         if new == self._screen_sig:
             return
         self._screen_sig = new
+        self.refresh_backdrop()
         saved = self.config.get("screen_layouts", {}).get(new) if self.config.get("screen_memory", True) else None
         geo = QGuiApplication.primaryScreen().availableGeometry()
         stray = 0
@@ -1160,13 +1170,52 @@ class FencesApp:
             self.fence_changed(fence)
             self.notify(t("Hatırlatıcı — {0}").format(fence.data["name"]) + (": " + first[:80] if first else ""))
 
-    def check_wallpaper(self):
-        if appearance(self.config).get("accent") != "wallpaper":
+    # ---- Cam efekti: masaüstünün bulanık görüntüsü
+    BACKDROP_SCALE = 0.25
+
+    def refresh_backdrop(self, repaint=True):
+        """Masaüstünün (duvar kâğıdı ve simgeler) görüntüsünü alıp bulanıklaştırır. Alınamazsa None kalır
+        ve kartlar Windows'un kendi bulanıklık katmanını kullanır."""
+        shot = capture_desktop()
+        had = self.backdrop is not None
+        if shot is None:
+            self.backdrop = None
+        else:
+            data, w, h, left, top = shot
+            full = QImage(data, w, h, w * 4, QImage.Format_RGB32)
+            # Önce çok küçültüp sonra büyütmek ucuz ve yumuşak bir bulanıklık verir
+            tiny = full.scaled(max(1, w // 14), max(1, h // 14), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            soft = tiny.scaled(max(1, round(w * self.BACKDROP_SCALE)), max(1, round(h * self.BACKDROP_SCALE)),
+                               Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            self.backdrop = (soft.copy(), left, top, soft.width() / w, soft.height() / h)
+        if repaint:
+            if had != (self.backdrop is not None):  # yöntem değişti: kartların stili yeniden kurulmalı
+                self.apply_look()
+            for f in self.fences:
+                f.update()
+
+    def paint_backdrop(self, widget, radius):
+        """Kartın arkasına, bulunduğu yerdeki bulanık masaüstü görüntüsünü yuvarlak köşeyle boyar."""
+        if self.backdrop is None:
             return
+        image, left, top, kx, ky = self.backdrop
+        l, t, r, b = window_rect(widget)
+        source = QRectF((l - left) * kx, (t - top) * ky, (r - l) * kx, (b - t) * ky)
+        p = QPainter(widget)
+        p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(widget.rect()), radius, radius)
+        p.setClipPath(path)
+        p.drawImage(QRectF(widget.rect()), image, source)
+        p.end()
+
+    def check_wallpaper(self):
         now = wallpaper_key()
         if now != self._wallpaper:
             self._wallpaper = now
-            self.apply_look()
+            self.refresh_backdrop()
+            if appearance(self.config).get("accent") == "wallpaper":
+                self.apply_look()
 
     def set_locked(self, on):
         self.locked = on

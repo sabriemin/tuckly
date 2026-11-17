@@ -1,16 +1,16 @@
 # PyInstaller sürüm kaynağı: Windows bildirimlerde ve görev çubuğunda uygulama adını buradan okur.
 VSVersionInfo(
-  ffi=FixedFileInfo(filevers=(0, 3, 0, 0), prodvers=(0, 3, 0, 0), mask=0x3f, flags=0x0, OS=0x40004,
+  ffi=FixedFileInfo(filevers=(0, 3, 1, 0), prodvers=(0, 3, 1, 0), mask=0x3f, flags=0x0, OS=0x40004,
                     fileType=0x1, subtype=0x0, date=(0, 0)),
   kids=[
     StringFileInfo([StringTable('040904B0', [
       StringStruct('CompanyName', 'Tuckly'),
       StringStruct('FileDescription', 'Tuckly'),
-      StringStruct('FileVersion', '0.3.0'),
+      StringStruct('FileVersion', '0.3.1'),
       StringStruct('InternalName', 'Tuckly'),
       StringStruct('OriginalFilename', 'Tuckly.exe'),
       StringStruct('ProductName', 'Tuckly'),
-      StringStruct('ProductVersion', '0.3.0'),
+      StringStruct('ProductVersion', '0.3.1'),
       StringStruct('LegalCopyright', 'GPL-3.0')])]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]

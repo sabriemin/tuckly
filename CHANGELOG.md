@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- Glass cards no longer show square corners: Tuckly now draws the blurred desktop behind each card itself, so rounded corners are exact and smooth
+- The quick launcher follows a language change, and its last result is no longer cut off
+- The item counter in a card title no longer sits above the text
+
 ## 0.3.0
 
 - Note cards have their own settings: text size, sticky-note paper colors and word wrap

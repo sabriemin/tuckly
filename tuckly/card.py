@@ -659,6 +659,7 @@ class FenceWindow(QWidget):
         self.look = None
         self.popup_look = None
         self._blur = False
+        self._fake = False           # bulanıklığı Tuckly çiziyor (masaüstü görüntüsü); Windows katmanı kapalı
         self._suspended = False      # taşıma/boyutlandırma sırasında bulanıklık geçici olarak kapalı
         self._force_refresh = False
         self._filter = ""      # kart içi arama metni (küçük harf)
@@ -887,6 +888,15 @@ class FenceWindow(QWidget):
             it = self.list.item(i)
             it.setHidden(bool(self._filter) and self._filter not in it.text().lower())
 
+    def paintEvent(self, e):
+        if self._fake and self.look:
+            self.app.paint_backdrop(self, self.look.radius)
+
+    def moveEvent(self, e):
+        super().moveEvent(e)
+        if self._fake:  # arkadaki görüntü kartın yerine göre değişir
+            self.update()
+
     def ensure_on_screen(self):
         if QGuiApplication.screenAt(self.frameGeometry().center()) is None:
             geo = QGuiApplication.primaryScreen().availableGeometry()
@@ -906,13 +916,13 @@ class FenceWindow(QWidget):
 
     def _apply_region(self):
         """Bulanıklık açıkken pencereyi kartın köşe yuvarlaklığına göre kırpar."""
-        if self.look:
+        if self.look and not self._fake:
             set_window_region(self, self.look.radius if self._blur and not self._suspended else None)
 
     def suspend_blur(self):
         """Kart taşınırken ya da boyutlanırken arka plan bulanıklığını geçici olarak kapatır.
         Windows bulanık pencereleri hareket ettirirken belirgin biçimde yavaşlıyor."""
-        if self._blur and not self._suspended and self.look:
+        if self._blur and not self._fake and not self._suspended and self.look:
             self._suspended = True
             set_acrylic(self, self.look.bg, 6, enable=False)
             set_window_region(self, None)
@@ -946,9 +956,16 @@ class FenceWindow(QWidget):
                                accent=QColor(paper).darker(260))
             self.look = look
             # Bulanıklık katmanı renksiz tutulur; renk ve opaklık stil sayfasında boyanır
-            self._blur = blur = set_acrylic(self, look.bg, 6, enable=look.wants_blur) and look.wants_blur
-            self._apply_region()
+            self._fake = look.wants_blur and self.app.backdrop is not None
+            if self._fake:  # cam efektini Tuckly çizer: köşeler tam yuvarlak ve pürüzsüz olur
+                set_acrylic(self, look.bg, 6, enable=False)
+                set_window_region(self, None)
+                self._blur = blur = True
+            else:
+                self._blur = blur = set_acrylic(self, look.bg, 6, enable=look.wants_blur) and look.wants_blur
+                self._apply_region()
             self.setStyleSheet(card_style(look, blur))
+            self.update()
             if self.popup:
                 self.popup.apply_look(self.popup_look)
             self.list.delegate.look = look
