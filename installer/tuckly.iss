@@ -1,4 +1,4 @@
-; Tuckly kurulum betiği (Inno Setup 6).
+﻿; Tuckly kurulum betiği (Inno Setup 6).
 ; Önce `python -m PyInstaller --noconfirm --clean tuckly.spec` ile dist\Tuckly klasörünü üretin, sonra:
 ;     ISCC installer\tuckly.iss            ->  dist\Tuckly-Setup-<sürüm>.exe
 ; Kurulum yönetici izni istemez; yalnızca geçerli kullanıcı için kurar.
@@ -13,6 +13,8 @@ AppId={{6B6B3A52-6C1F-4E0B-9C7C-7D0B5A2C7A11}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=Tuckly
+AppPublisherURL=https://github.com/sabriemin/tuckly
+AppSupportURL=https://github.com/sabriemin/tuckly/issues
 DefaultDirName={localappdata}\Programs\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -38,6 +40,14 @@ Name: "de"; MessagesFile: "compiler:Languages\German.isl"
 Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
 Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"
+
+[CustomMessages]
+en.DeleteSettings=Tuckly keeps your cards and settings in your profile. Delete them too?
+tr.DeleteSettings=Tuckly kartlarınızı ve ayarlarınızı profilinizde saklar. Onlar da silinsin mi?
+de.DeleteSettings=Tuckly speichert Ihre Karten und Einstellungen in Ihrem Profil. Sollen sie ebenfalls gelöscht werden?
+es.DeleteSettings=Tuckly guarda sus tarjetas y su configuración en su perfil. ¿Eliminarlas también?
+fr.DeleteSettings=Tuckly conserve vos cartes et vos paramètres dans votre profil. Les supprimer également ?
+ru.DeleteSettings=Tuckly хранит ваши карточки и параметры в профиле. Удалить их тоже?
 
 [Tasks]
 Name: "autostart"; Description: "{cm:AutoStartProgram,{#AppName}}"; Flags: unchecked
@@ -76,7 +86,6 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
-    if MsgBox('Tuckly settings and card layout are kept in your profile. Delete them too?',
-              mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+    if MsgBox(CustomMessage('DeleteSettings'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
       DelTree(ExpandConstant('{userappdata}\Tuckly'), True, True, True);
 end;

@@ -9,6 +9,7 @@ import json
 import re
 import tempfile
 import threading
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -58,7 +59,12 @@ class UpdateChecker(QObject):
                           if a["name"].lower().endswith(".exe") and "setup" in a["name"].lower()), "")
             self.finished.emit({"version": data["tag_name"].lstrip("vV"), "page": data.get("html_url", REPO_URL),
                                 "asset": asset})
-        except Exception as ex:  # noqa: BLE001 - ağ yok, depo yok, sürüm yok...
+        except urllib.error.HTTPError as ex:
+            if ex.code == 404:  # depoda henüz yayınlanmış sürüm yok: güncel say
+                self.finished.emit({"version": "0", "page": REPO_URL, "asset": ""})
+            else:
+                self.finished.emit({"error": str(ex)})
+        except Exception as ex:  # noqa: BLE001 - ağ yok, zaman aşımı...
             self.finished.emit({"error": str(ex)})
 
     def download(self, url: str):

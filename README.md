@@ -39,7 +39,7 @@ When Tuckly quits, your desktop is exactly as it was.
 
 ## Install
 
-Download `Tuckly-Setup-<version>.exe` from the Releases page and run it. The installer needs no administrator
+Download `Tuckly-Setup-<version>.exe` from the [Releases page](https://github.com/sabriemin/tuckly/releases) and run it. The installer needs no administrator
 rights and installs for the current user only.
 
 Requirements: Windows 10 or 11 (64-bit). The glass styles look best on Windows 11.
@@ -77,7 +77,7 @@ The same guide is available inside the app under **Guide**, together with a tour
 ## Run from source
 
 ```
-git clone <repository-url>
+git clone https://github.com/sabriemin/tuckly.git
 cd tuckly
 python -m pip install -r requirements.txt
 python run.py

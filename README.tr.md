@@ -39,7 +39,7 @@ yalnızca kartında görünür. Tuckly kapanınca masaüstünüz olduğu gibi ge
 
 ## Kurulum
 
-Sürümler (Releases) sayfasından `Tuckly-Setup-<sürüm>.exe` dosyasını indirip çalıştırın. Kurulum yönetici
+[Sürümler sayfasından](https://github.com/sabriemin/tuckly/releases) `Tuckly-Setup-<sürüm>.exe` dosyasını indirip çalıştırın. Kurulum yönetici
 izni istemez ve yalnızca geçerli kullanıcı için kurar.
 
 Gereksinim: Windows 10 ya da 11 (64 bit). Cam stiller en iyi Windows 11'de görünür.
@@ -79,7 +79,7 @@ Aynı rehber uygulamanın içinde **Rehber** sayfasında da vardır; tur oradan 
 ## Kaynak koddan çalıştırma
 
 ```
-git clone <depo-adresi>
+git clone https://github.com/sabriemin/tuckly.git
 cd tuckly
 python -m pip install -r requirements.txt
 python run.py
