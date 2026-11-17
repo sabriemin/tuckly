@@ -88,6 +88,8 @@ GUIDE = (
     ("", mark("Sekmeli kartlar"),
      mark("Kart ayarlarının Davranış sekmesinde birleştirmek istediğiniz kartları seçin. Kartlar aynı yerde durur; "
           "başlığın altındaki sekmelerle aralarında geçersiniz.")),
+    ("", mark("Hızlı başlatıcı"),
+     mark("Ctrl+Alt+F'ye basın, bir öğenin adını yazın ve Enter ile açın. Tüm kartlardaki öğeleri ve notları arar.")),
     ("", mark("Çıkış"),
      mark("Tuckly kapanınca gizlenen simgeler masaüstüne geri gelir; dosyalarınız hiçbir zaman taşınmaz.")),
 )
@@ -579,8 +581,12 @@ class ControlPanel(QWidget):
             row(t("Çift tıklayınca kartları gizle"),
                 t("Masaüstünde boş bir yere çift tıklamak tüm kartları gizler; yeniden çift tıklamak geri getirir."),
                 cfg.get("dblclick_hide", True), app.set_dblclick_hide, "\uE7B3"),
+            row(t("Tam ekranda kartları gizle"),
+                t("Tam ekran bir oyun, sunum ya da video açıkken kartlar tüm ekranlarda gizlenir; kapanınca geri gelir."),
+                cfg.get("fullscreen_hide", False), app.set_fullscreen_hide, "\uE740"),
             row(t("Kısayol tuşları"),
-                t("Ctrl+Alt+H kartları gizler ya da gösterir, Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar."),
+                t("Ctrl+Alt+F hızlı başlatıcıyı açar, Ctrl+Alt+H kartları gizler ya da gösterir, "
+                  "Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar."),
                 cfg.get("hotkeys", True), app.set_hotkeys, "\uE765"),
             row(t("Kartları kenarlara yapıştır"),
                 t("Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır."),

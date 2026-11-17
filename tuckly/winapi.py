@@ -360,3 +360,14 @@ def wallpaper_key():
         return buf.value, Path(buf.value).stat().st_mtime
     except OSError:
         return None
+
+
+def fullscreen_busy() -> bool:
+    """Tam ekran bir uygulama (oyun, sunum, tam ekran video) çalışıyor mu?"""
+    try:
+        state = ctypes.c_int(0)
+        if shell32.SHQueryUserNotificationState(ctypes.byref(state)) != 0:
+            return False
+        return state.value in (2, 3, 4)  # QUNS_BUSY, QUNS_RUNNING_D3D_FULL_SCREEN, QUNS_PRESENTATION_MODE
+    except (OSError, AttributeError):
+        return False

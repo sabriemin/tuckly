@@ -51,12 +51,13 @@ from .winapi import (
     set_file_hidden,
 )
 from .theme import appearance, base_style, make_app_icon, make_look
-from .winapi import wallpaper_key
+from .winapi import fullscreen_busy, wallpaper_key
 from .widgets import StyleTile, Toggle
 from .card import FenceWindow
 from .notifications import AVAILABLE as BADGES_AVAILABLE, NotificationWatcher
 from .panel import ControlPanel
 from .shortcuts import DesktopClickWatcher, Hotkeys
+from .launcher import Launcher
 from .tour import Tour
 from .updater import UpdateChecker, is_newer
 
@@ -75,6 +76,7 @@ class FencesApp:
         self.locked = self.config.get("locked", False)
         self.fences: list[FenceWindow] = []
         self.cards_hidden = False  # tüm kartlar geçici olarak gizli (çift tıklama / kısayol)
+        self.fullscreen_hidden = False  # tam ekran uygulama çalıştığı için gizli
 
         if not self.config.get("fences"):
             self.create_defaults()
@@ -153,7 +155,15 @@ class FencesApp:
         # Masaüstünde boş yere çift tıklama ve genel kısayol tuşları (Ctrl+Alt+H / N / T)
         self.click_watcher = DesktopClickWatcher()
         self.click_watcher.double_clicked.connect(self.toggle_cards)
-        self.hotkeys = Hotkeys(qapp, {"H": self.toggle_cards, "N": self.new_card_at_cursor, "T": self.show_panel})
+        self.launcher = Launcher(self)
+        self.hotkeys = Hotkeys(qapp, {"H": self.toggle_cards, "N": self.new_card_at_cursor, "T": self.show_panel,
+                                      "F": self.launcher.toggle})
+        # Tam ekran uygulama ve kart zamanlamaları için görünürlük denetimi
+        self._fullscreen_timer = QTimer(interval=2000, timeout=self.check_fullscreen)
+        self._schedule_timer = QTimer(interval=30000, timeout=self.refresh_visibility)
+        self._schedule_timer.start()
+        if self.config.get("fullscreen_hide") and not _override:
+            self._fullscreen_timer.start()
         if not _override:  # testler gerçek fareyi ve klavyeyi dinlemesin
             self.click_watcher.set_enabled(self.config.get("dblclick_hide", True))
             self.hotkeys.set_enabled(self.config.get("hotkeys", True))
@@ -166,6 +176,7 @@ class FencesApp:
         m.addAction(t("Görünüm"), lambda: self.show_panel(page=1))
         m.addAction(t("Masaüstünü düzenle"), lambda: self.show_panel(page=2))
         m.addAction(t("Kartları gizle / göster"), self.toggle_cards)
+        m.addAction(t("Hızlı başlat"), lambda: self.launcher.toggle())
         m.addSeparator()
         m.addAction(t("Çıkış"), self.quit)
         self.tray_menu = m
@@ -570,6 +581,8 @@ class FencesApp:
         fence.apply_settings()
         if fence.data.get("group"):  # sekmelerde görünen ad değişmiş olabilir
             self.refresh_tabs()
+        if fence in self.fences:  # zamanlama değişmiş olabilir
+            fence.setVisible(self.should_show(fence))
         panel = getattr(self, "panel", None)
         for ed in (fence.settings, panel.editor if panel else None):
             if ed and ed is not source and ed.fence is fence:
@@ -739,11 +752,66 @@ class FencesApp:
 
     def should_show(self, fence) -> bool:
         """Kart şu an ekranda mı olmalı? Sekme grubunda yalnızca seçili sekmenin kartı görünür."""
-        if self.cards_hidden:
+        if self.cards_hidden or self.fullscreen_hidden:
             return False
         if fence.kind == "rest" and not self.config.get("hide_icons"):
             return False
+        if not self.in_schedule(fence):
+            return False
         return not fence.data.get("group") or bool(fence.data.get("tab_active"))
+
+    @staticmethod
+    def in_schedule(fence, now=None) -> bool:
+        """Kartın zamanlaması varsa şu an gösterilmesi gereken gün ve saatte miyiz?"""
+        sch = fence.data.get("schedule")
+        if not sch or not sch.get("on"):
+            return True
+        lt = time.localtime(now)
+        minute = lt.tm_hour * 60 + lt.tm_min
+        days = sch.get("days", list(range(7)))
+
+        def minutes(text, default):
+            try:
+                h, m = text.split(":")
+                return int(h) * 60 + int(m)
+            except (ValueError, AttributeError):
+                return default
+
+        start, end = minutes(sch.get("from"), 9 * 60), minutes(sch.get("to"), 18 * 60)
+        if start <= end:
+            return lt.tm_wday in days and start <= minute < end
+        # Gece yarısını aşan aralık (örn. 22:00–02:00): ertesi günün sabahı önceki güne sayılır
+        return (lt.tm_wday in days and minute >= start) or ((lt.tm_wday - 1) % 7 in days and minute < end)
+
+    def refresh_visibility(self):
+        for f in self.fences:
+            f.setVisible(self.should_show(f))
+
+    def check_fullscreen(self):
+        busy = fullscreen_busy()
+        if busy != self.fullscreen_hidden:
+            self.fullscreen_hidden = busy
+            if busy:
+                self.close_popups()
+            self.refresh_visibility()
+
+    def set_fullscreen_hide(self, on):
+        self.config["fullscreen_hide"] = on
+        self.save()
+        if on and not _override:
+            self._fullscreen_timer.start()
+        else:
+            self._fullscreen_timer.stop()
+            self.fullscreen_hidden = False
+            self.refresh_visibility()
+
+    def reveal(self, fence):
+        """Kartı görünür hale getirir: gizliyse geri getirir, sekme grubundaysa öne alır, kapalıysa açar."""
+        if self.cards_hidden:
+            self.set_cards_hidden(False)
+        if fence.data.get("group") and not fence.data.get("tab_active"):
+            self.activate_tab(fence)
+        fence.begin_peek()
 
     # ---- Sekmeli kartlar: aynı gruptaki kartlar aynı yerde durur, sekmelerle aralarında geçilir
     def group_of(self, fence) -> list:

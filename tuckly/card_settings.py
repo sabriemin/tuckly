@@ -6,12 +6,13 @@ klasör) ve Kilit (kilitler ve kartı kaldırma). Sekmeler sayesinde form kaydı
 
 import os
 
-from PySide6.QtCore import QDateTime, QTimer, Qt
+from PySide6.QtCore import QDateTime, QTime, QTimer, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QButtonGroup,
     QApplication,
     QDateTimeEdit,
+    QTimeEdit,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
@@ -24,7 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from .i18n import t
-from .config import CATEGORIES, EMOJIS, ICON_SIZES, NOTE_SIZES, PAPERS, SORT_MODES
+from .config import CATEGORIES, DAYS, EMOJIS, ICON_SIZES, NOTE_SIZES, PAPERS, SORT_MODES
 from .theme import appearance
 from .widgets import SwatchRow, Toggle, label, make_group, named, segmented, setting_row
 
@@ -42,10 +43,10 @@ class CardSettings(QWidget):
         lay.setContentsMargins(12, 2, 12, 12) if in_card else lay.setContentsMargins(0, 0, 6, 12)
         lay.setSpacing(10)
 
-        tab_box, self.tabs = segmented(((t("Temel"), 0), (t("İçerik"), 1), (t("Davranış"), 2)), self.set_tab)
+        tab_box, self.tabs = segmented(((t("Temel"), 0), (t("İçerik"), 1), (t("Davranış"), 2), (t("Kilit"), 3)), self.set_tab)
         lay.addWidget(tab_box)
         # Sekmeler alt alta eklenir, yalnızca seçili olan gösterilir: form her zaman o sekmenin boyundadır
-        self.pages = [build() for build in (self._general_tab, self._content_tab, self._lock_tab)]
+        self.pages = [build() for build in (self._general_tab, self._content_tab, self._behaviour_tab, self._lock_tab)]
         for page in self.pages:
             lay.addWidget(page)
         lay.addStretch()
@@ -284,14 +285,73 @@ class CardSettings(QWidget):
         v.addWidget(self.note_info)
         return page
 
+    # ---------------------------------------------------------------- Davranış
+    def _behaviour_tab(self):
+        page, v = self._tab()
+        self.locks = {}
+        rollup = Toggle(False)
+        rollup.toggled.connect(lambda on: self.on_lock("rollup", on))
+        self.locks["rollup"] = rollup
+
+        # Zamanlama: kart yalnızca seçilen gün ve saatlerde görünür
+        self.schedule_on = Toggle(False)
+        self.schedule_on.toggled.connect(self.on_schedule)
+        sched = QWidget()
+        sl = QVBoxLayout(sched)
+        sl.setContentsMargins(0, 0, 0, 0)
+        sl.setSpacing(6)
+        days = QHBoxLayout()
+        days.setSpacing(4)
+        self.day_buttons = []
+        for name in DAYS:
+            b = named(QPushButton(t(name)), "pill")
+            b.setCheckable(True)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setMinimumWidth(10)
+            b.setStyleSheet("padding: 3px 0;")  # yedi gün tek satıra sığsın
+            b.clicked.connect(self.on_schedule)
+            self.day_buttons.append(b)
+            days.addWidget(b, 1)
+        sl.addLayout(days)
+        hours = QHBoxLayout()
+        hours.setSpacing(8)
+        self.time_from, self.time_to = QTimeEdit(), QTimeEdit()
+        for w in (self.time_from, self.time_to):
+            w.setDisplayFormat("HH:mm")
+            w.editingFinished.connect(self.on_schedule)
+        hours.addWidget(self.time_from, 1)
+        hours.addWidget(label("–", "rowValue"))
+        hours.addWidget(self.time_to, 1)
+        sl.addLayout(hours)
+        self.schedule_box = sched
+
+        v.addWidget(make_group([
+            setting_row(t("Üzerine gelince aç"),
+                        t("Kart yalnızca başlık olarak durur; fare üzerine gelince açılır, ayrılınca kapanır."),
+                        control=rollup, icon="\uE70D"),
+            setting_row(t("Zamanlama"), t("Kart yalnızca seçtiğiniz gün ve saatlerde görünür."),
+                        control=self.schedule_on, below=sched, icon="\uE823"),
+        ]))
+
+        # Sekmeler: seçilen kartlar bu kartla aynı yerde durur
+        self.tab_box = QWidget()
+        self.tab_grid = QGridLayout(self.tab_box)
+        self.tab_grid.setContentsMargins(0, 0, 0, 0)
+        self.tab_grid.setSpacing(6)
+        self.tab_group = make_group([
+            setting_row(t("Sekmeler"),
+                        t("Seçtiğiniz kartlar bu kartla aynı yerde durur; başlığın altındaki sekmelerle "
+                          "aralarında geçersiniz."),
+                        below=self.tab_box, icon="\uE8A9"),
+        ])
+        v.addWidget(self.tab_group)
+        return page
+
     # ---------------------------------------------------------------- Kilit
     def _lock_tab(self):
         page, v = self._tab()
-        self.locks = {}
         rows = []
         for key, title, desc, glyph in (
-                ("rollup", t("Üzerine gelince aç"),
-                 t("Kart yalnızca başlık olarak durur; fare üzerine gelince açılır, ayrılınca kapanır."), "\uE70D"),
                 ("lock_pos", t("Konumu kilitle"), t("Kart başlığından sürüklenerek taşınamaz."), ""),
                 ("lock_size", t("Boyutu kilitle"), t("Kart köşesinden boyutlandırılamaz."), ""),
                 ("lock_content", t("İçeriği kilitle"),
@@ -326,18 +386,6 @@ class CardSettings(QWidget):
         cl.addWidget(self.confirm)
         self.confirm_text = label("", "rowDesc", wrap=True)
         self.remove_row = setting_row(t("Kartı kaldır"), None, control=control, below=self.confirm_text, icon="")
-        # Sekmeler: seçilen kartlar bu kartla aynı yerde durur
-        self.tab_box = QWidget()
-        self.tab_grid = QGridLayout(self.tab_box)
-        self.tab_grid.setContentsMargins(0, 0, 0, 0)
-        self.tab_grid.setSpacing(6)
-        self.tab_group = make_group([
-            setting_row(t("Sekmeler"),
-                        t("Seçtiğiniz kartlar bu kartla aynı yerde durur; başlığın altındaki sekmelerle "
-                          "aralarında geçersiniz."),
-                        below=self.tab_box, icon="\uE8A9"),
-        ])
-        v.addWidget(self.tab_group)
         self.remove_group = make_group([self.remove_row])
         v.addWidget(self.remove_group)
         return page
@@ -384,6 +432,14 @@ class CardSettings(QWidget):
         if force or not self.name_rules.hasFocus():
             self.name_rules.setText(", ".join(d.get("name_rules", [])))
         self._load_tabs()
+        sch = d.get("schedule") or {}
+        self.schedule_on.setChecked(bool(sch.get("on")))
+        for i, b in enumerate(self.day_buttons):
+            b.setChecked(i in sch.get("days", [0, 1, 2, 3, 4]))
+        if force or not (self.time_from.hasFocus() or self.time_to.hasFocus()):
+            self.time_from.setTime(QTime.fromString(sch.get("from", "09:00"), "HH:mm"))
+            self.time_to.setTime(QTime.fromString(sch.get("to", "18:00"), "HH:mm"))
+        self.schedule_box.setVisible(bool(sch.get("on")))
         for key, b in self.cat_buttons.items():
             b.setChecked(key in d.get("categories", []))
         mode = d.get("sort", "name")
@@ -422,6 +478,17 @@ class CardSettings(QWidget):
     def on_name(self, text):
         if self.fence and text.strip():
             self.fence.data["name"] = text.strip()
+            self._changed()
+
+    def on_schedule(self, *_):
+        if self.fence and not self._loading:
+            self.fence.data["schedule"] = {
+                "on": self.schedule_on.isChecked(),
+                "days": [i for i, b in enumerate(self.day_buttons) if b.isChecked()],
+                "from": self.time_from.time().toString("HH:mm"),
+                "to": self.time_to.time().toString("HH:mm"),
+            }
+            self.schedule_box.setVisible(self.schedule_on.isChecked())
             self._changed()
 
     # ---- Not kartı

@@ -7,6 +7,10 @@
 - Web addresses in notes are highlighted and open with Ctrl+click
 - Note reminders: a Windows notification at the chosen time brings the note to the front
 - Copy a note to the clipboard or save it as a .txt or .md file
+- Quick launcher (Ctrl+Alt+F): type to find and open any item in any card, or jump to a note
+- Optional: hide all cards while a full-screen game, presentation or video is running
+- Card schedules: show a card only on chosen days and hours
+- Card settings have a separate Lock tab again; Behavior holds open-on-hover, schedule and tabs
 
 ## 0.2.0
 

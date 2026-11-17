@@ -80,6 +80,10 @@ PAPERS = ("#ffe680", "#ffc2d1", "#a8d8ff", "#b9ebb4", "#d9c8ff", "#ffd3a1")
 NOTE_SIZES = ((mark("Küçük"), 0), (mark("Orta"), 2), (mark("Büyük"), 4))
 
 
+# Haftanın günleri (kısa); sıra Python'un tm_wday sırasıdır: 0 = Pazartesi
+DAYS = (mark("Pzt"), mark("Sal"), mark("Çar"), mark("Per"), mark("Cum"), mark("Cmt"), mark("Paz"))
+
+
 # Kart başlığına eklenebilen simgeler
 EMOJIS = ("📁", "🎮", "💼", "🎨", "🎵", "📷", "📚", "💻", "⭐")
 
