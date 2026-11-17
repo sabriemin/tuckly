@@ -362,7 +362,6 @@ class FencesApp:
             d["categories"] = list(cats)
             fences.append(d)
         self.config["fences"] = fences
-        self.config["tour_pending"] = True  # ilk kurulum: rehber turu bir kez kendiliğinden açılır
         self.save()
 
     def migrate(self):
@@ -967,7 +966,8 @@ def main():
         QTimer.singleShot(700, lambda: app.handle_message(msg))
     elif "--arkaplan" not in sys.argv:
         QTimer.singleShot(300, app.show_panel)
-        if app.config.pop("tour_pending", False):
+        if not app.config.get("tour_seen"):  # rehber turu, bir kez gösterilene kadar ilk açılışta açılır
+            app.config["tour_seen"] = True
             app.save()
             QTimer.singleShot(1200, app.start_tour)
     if "--bildirim-testi" in sys.argv:  # bildirimin hangi adla göründüğünü denemek için

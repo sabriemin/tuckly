@@ -3,6 +3,7 @@
 ## 0.1.1
 
 - About page shows the developer with a link to their GitHub profile
+- The guided tour opens on the first start after installing, also when settings already exist
 
 ## 0.1.0
 
