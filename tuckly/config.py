@@ -18,6 +18,9 @@ AUMID = "Tuckly"  # kaynak koddan çalışırken bildirim başlığında görün
 
 # Projenin GitHub deposu. Boşken "yıldız ver", "sorun bildir" ve "sürümler" düğmeleri gizlenir.
 REPO_URL = "https://github.com/sabriemin/tuckly"
+# Hakkında sayfasının altında gösterilen geliştirici ve profil bağlantısı
+AUTHOR = "sabriemin"
+AUTHOR_URL = "https://github.com/sabriemin"
 # Windows simge yazı tipleri (Windows 11: Fluent, Windows 10: MDL2); simgeler özel kullanım kod noktalarıdır
 ICON_FONT = '"Segoe Fluent Icons", "Segoe MDL2 Assets"'
 LEGACY_ID = "MasaustuKutulari"  # uygulamanın eski adı; ayarlar buradan devralınır

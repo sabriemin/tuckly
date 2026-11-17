@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from .i18n import LANGUAGES, current_language, mark, t
-from .config import APP_NAME, DATA_DIR, DEFAULT_FONT, REPO_URL
+from .config import APP_NAME, AUTHOR, AUTHOR_URL, DATA_DIR, DEFAULT_FONT, REPO_URL
 from .winapi import set_dark_titlebar
 from .theme import ACCENT_MODES, STYLES, appearance, dot_icon, make_app_icon, panel_look, panel_style, seed_of
 from .widgets import (
@@ -724,6 +724,15 @@ class ControlPanel(QWidget):
                         "ardından kaldırma programını açar. Dosyalarınıza dokunulmaz."),
                       control=box, icon="\uE74D"),
         ])
+
+        # Geliştirici: adı profil sayfasına bağlantıdır
+        link = f'<a href="{AUTHOR_URL}" style="color: {self.look.accent.name()}; text-decoration: none;">{AUTHOR}</a>'
+        credit = label(t("{0} tarafından geliştirilmiştir").format(link), "aboutSub")
+        credit.setTextFormat(Qt.RichText)
+        credit.setOpenExternalLinks(True)
+        credit.setAlignment(Qt.AlignHCenter)
+        credit.setContentsMargins(0, 16, 0, 4)
+        v.addWidget(credit)
         v.addStretch()
         return page
 

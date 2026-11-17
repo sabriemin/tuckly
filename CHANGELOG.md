@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- About page shows the developer with a link to their GitHub profile
+
 ## 0.1.0
 
 First release.

@@ -31,7 +31,7 @@ for n in ["Rapor.pdf", "Notlar.txt", "Bütçe.xlsx", "foto.png", "tatil.jpg", "k
 # Eski sürümün (Masaüstü Kutuları) ayarı: dosyaları kart klasörüne taşınmış bir "Medya" kartı
 old = config.FENCE_ROOT / "Medya"
 old.mkdir(parents=True)
-for n in ["Claude.lnk", "Gemini.lnk"]:
+for n in ["Paint.lnk", "Takvim.lnk"]:
     (old / n).write_text("l")
 (config.FENCE_ROOT / "Belgeler").mkdir()
 config.LEGACY_DATA_DIR.mkdir(parents=True)
@@ -50,7 +50,7 @@ belge, medya = app.fences[0], app.fences[1]
 # 1) Eski ayarlar devralındı; eski klasördeki kısayollar masaüstüne döndü
 assert config.CONFIG_FILE.exists(), "yeni ayar dosyası yazılmadı"
 assert (config.LEGACY_DATA_DIR / "ayarlar.json").exists(), "eski ayar dosyasına dokunulmamalı"
-assert (desk / "Claude.lnk").exists() and (desk / "Gemini.lnk").exists()
+assert (desk / "Paint.lnk").exists() and (desk / "Takvim.lnk").exists()
 assert not old.exists() and not config.FENCE_ROOT.exists()
 assert medya.kind == "desktop" and medya.list.count() == 2
 assert app.rest and app.rest.kind == "rest"
