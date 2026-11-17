@@ -312,5 +312,12 @@
  "Kartların yeri, boyutu ve içeriği bir adla saklanır; sonra tek tıkla geri yüklenir.": "The position, size and content of the cards are stored under a name and restored later with one click.",
  "Yükle": "Load",
  "Sil": "Delete",
- "{0} kart · {1}": "{0} cards · {1}"
+ "{0} kart · {1}": "{0} cards · {1}",
+ "örn: fatura, rapor": "e.g. invoice, report",
+ "Ada göre": "By name",
+ "Adında bu sözcüklerden biri geçen öğeler, türü ne olursa olsun bu karta yerleşir.": "Items whose name contains one of these words are placed in this card, whatever their type.",
+ "Sekmeler": "Tabs",
+ "Seçtiğiniz kartlar bu kartla aynı yerde durur; başlığın altındaki sekmelerle aralarında geçersiniz.": "The cards you select share this card's place; switch between them with the tabs under the title.",
+ "Sekmeli kartlar": "Tabbed cards",
+ "Kart ayarlarının Davranış sekmesinde birleştirmek istediğiniz kartları seçin. Kartlar aynı yerde durur; başlığın altındaki sekmelerle aralarında geçersiniz.": "On the Behavior tab of the card settings, select the cards you want to combine. They share one place; switch between them with the tabs under the title."
 }

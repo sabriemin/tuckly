@@ -6,7 +6,7 @@ klasör) ve Kilit (kilitler ve kartı kaldırma). Sekmeler sayesinde form kaydı
 
 import os
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -145,6 +145,9 @@ class CardSettings(QWidget):
         self.rules = QLineEdit()
         self.rules.setPlaceholderText(t("örn: dwg, blend"))
         self.rules.editingFinished.connect(self.on_rules)
+        self.name_rules = QLineEdit()
+        self.name_rules.setPlaceholderText(t("örn: fatura, rapor"))
+        self.name_rules.editingFinished.connect(self.on_name_rules)
         go = QPushButton(t("Masaüstünü düzenle"))
         go.setCursor(Qt.PointingHandCursor)
         go.clicked.connect(lambda: self.app.show_panel(page=2))
@@ -153,6 +156,8 @@ class CardSettings(QWidget):
                         below=cats, icon=""),
             setting_row(t("Ek uzantılar"), t("İsteğe bağlı: listede olmayan dosya türleri, virgülle ayırarak."),
                         below=self.rules, icon=""),
+            setting_row(t("Ada göre"), t("Adında bu sözcüklerden biri geçen öğeler, türü ne olursa olsun bu karta yerleşir."),
+                        below=self.name_rules, icon="\uE8AC"),
             setting_row(t("Şimdi uygula"), t("Kartsız öğeleri kategorilere göre yerleştir."), control=go,
                         icon=""),
         ])
@@ -245,6 +250,18 @@ class CardSettings(QWidget):
         cl.addWidget(self.confirm)
         self.confirm_text = label("", "rowDesc", wrap=True)
         self.remove_row = setting_row(t("Kartı kaldır"), None, control=control, below=self.confirm_text, icon="")
+        # Sekmeler: seçilen kartlar bu kartla aynı yerde durur
+        self.tab_box = QWidget()
+        self.tab_grid = QGridLayout(self.tab_box)
+        self.tab_grid.setContentsMargins(0, 0, 0, 0)
+        self.tab_grid.setSpacing(6)
+        self.tab_group = make_group([
+            setting_row(t("Sekmeler"),
+                        t("Seçtiğiniz kartlar bu kartla aynı yerde durur; başlığın altındaki sekmelerle "
+                          "aralarında geçersiniz."),
+                        below=self.tab_box, icon="\uE8A9"),
+        ])
+        v.addWidget(self.tab_group)
         self.remove_group = make_group([self.remove_row])
         v.addWidget(self.remove_group)
         return page
@@ -288,6 +305,9 @@ class CardSettings(QWidget):
             btn.setChecked(True)
         if force or not self.rules.hasFocus():
             self.rules.setText(", ".join(d.get("rules", [])))
+        if force or not self.name_rules.hasFocus():
+            self.name_rules.setText(", ".join(d.get("name_rules", [])))
+        self._load_tabs()
         for key, b in self.cat_buttons.items():
             b.setChecked(key in d.get("categories", []))
         mode = d.get("sort", "name")
@@ -363,6 +383,34 @@ class CardSettings(QWidget):
     def on_categories(self):
         if self.fence:
             self.fence.data["categories"] = [k for k, b in self.cat_buttons.items() if b.isChecked()]
+            self._changed()
+
+    def _load_tabs(self):
+        """Sekme olarak birleştirilebilecek kartların düğmelerini güncel kart listesine göre kurar."""
+        while self.tab_grid.count():
+            w = self.tab_grid.takeAt(0).widget()
+            if w:
+                w.setParent(None)
+                w.deleteLater()
+        f = self.fence
+        others = [o for o in self.app.fences if o is not f and o.kind != "rest"] if f and f.kind != "rest" else []
+        self.tab_group.setVisible(bool(others))
+        cols = 2 if self.in_card else 3
+        for i, other in enumerate(others):
+            b = named(QPushButton(), "pill")
+            b.setCheckable(True)
+            b.setChecked(bool(f.data.get("group")) and other.data.get("group") == f.data.get("group"))
+            b.setCursor(Qt.PointingHandCursor)
+            b.setToolTip(other.data["name"])
+            b.setText(b.fontMetrics().elidedText(other.data["name"], Qt.ElideRight, 120))
+            # Düğmeler bu işlemle yeniden kurulur: tıklama bittikten sonra uygula
+            b.clicked.connect(lambda on, o=other: QTimer.singleShot(0, lambda: self.app.set_grouped(self.fence, o, on)))
+            self.tab_grid.addWidget(b, i // cols, i % cols)
+
+    def on_name_rules(self):
+        if self.fence:
+            text = self.name_rules.text()
+            self.fence.data["name_rules"] = [w.strip().lower() for w in text.replace(";", ",").split(",") if w.strip()]
             self._changed()
 
     def on_rules(self):

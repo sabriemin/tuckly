@@ -312,5 +312,12 @@
  "Kartların yeri, boyutu ve içeriği bir adla saklanır; sonra tek tıkla geri yüklenir.": "La position, la taille et le contenu des cartes sont enregistrés sous un nom, puis restaurés en un clic.",
  "Yükle": "Charger",
  "Sil": "Supprimer",
- "{0} kart · {1}": "{0} cartes · {1}"
+ "{0} kart · {1}": "{0} cartes · {1}",
+ "örn: fatura, rapor": "p. ex. : facture, rapport",
+ "Ada göre": "Par nom",
+ "Adında bu sözcüklerden biri geçen öğeler, türü ne olursa olsun bu karta yerleşir.": "Les éléments dont le nom contient l'un de ces mots sont placés dans cette carte, quel que soit leur type.",
+ "Sekmeler": "Onglets",
+ "Seçtiğiniz kartlar bu kartla aynı yerde durur; başlığın altındaki sekmelerle aralarında geçersiniz.": "Les cartes sélectionnées partagent l'emplacement de celle-ci ; passez de l'une à l'autre avec les onglets sous le titre.",
+ "Sekmeli kartlar": "Cartes à onglets",
+ "Kart ayarlarının Davranış sekmesinde birleştirmek istediğiniz kartları seçin. Kartlar aynı yerde durur; başlığın altındaki sekmelerle aralarında geçersiniz.": "Dans l'onglet Comportement des réglages de la carte, sélectionnez les cartes à regrouper. Elles partagent un emplacement ; passez de l'une à l'autre avec les onglets sous le titre."
 }

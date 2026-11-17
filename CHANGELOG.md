@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - Double-click an empty spot on the desktop, or press Ctrl+Alt+H, to hide and show all cards
 - Global shortcuts: Ctrl+Alt+N for a new card, Ctrl+Alt+T for the settings
@@ -12,6 +12,8 @@
 - Accent color can follow the desktop wallpaper
 - Named layouts: save the position, size and content of all cards and restore them later
 - Card positions are remembered per monitor setup and restored when a monitor is connected or removed
+- Tabbed cards: combine several cards in one place and switch between them with tabs
+- Name rules: items whose name contains a chosen word go to that card when organizing
 
 ## 0.1.3
 

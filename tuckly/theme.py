@@ -301,6 +301,11 @@ FenceList {{ background: transparent; border: none; outline: 0; }}
 FenceList QLineEdit {{ padding: 2px 4px; border-radius: 5px; font-size: 8.5pt;
                       background: {"rgb(250,250,252)" if look.light else "rgb(20,20,26)"}; }}
 #emptyHint {{ color: rgba({fg},110); {look.font_css(0, 400)} }}
+#tabs {{ background: transparent; }}
+QPushButton#tab {{ padding: 3px 8px; border: none; border-radius: 8px; background: rgba({fg},20);
+                  color: rgba({fg},200); {look.font_css(-0.5, 500)} }}
+QPushButton#tab:hover {{ background: rgba({fg},44); }}
+QPushButton#tab:checked {{ background: {look.accent.name()}; color: {look.on_accent}; }}
 QPlainTextEdit#note {{ background: transparent; border: none; color: rgb({fg}); padding: 2px 10px 6px 12px;
                        selection-background-color: {look.accent.name()}; selection-color: {look.on_accent};
                        {look.font_css(1, 400)} }}

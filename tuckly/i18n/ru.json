@@ -312,5 +312,12 @@
  "Kartların yeri, boyutu ve içeriği bir adla saklanır; sonra tek tıkla geri yüklenir.": "Положение, размер и содержимое карточек сохраняются под именем и восстанавливаются одним щелчком.",
  "Yükle": "Загрузить",
  "Sil": "Удалить",
- "{0} kart · {1}": "Карточек: {0} · {1}"
+ "{0} kart · {1}": "Карточек: {0} · {1}",
+ "örn: fatura, rapor": "напр.: счёт, отчёт",
+ "Ada göre": "По имени",
+ "Adında bu sözcüklerden biri geçen öğeler, türü ne olursa olsun bu karta yerleşir.": "Элементы, в имени которых есть одно из этих слов, попадают в эту карточку независимо от типа.",
+ "Sekmeler": "Вкладки",
+ "Seçtiğiniz kartlar bu kartla aynı yerde durur; başlığın altındaki sekmelerle aralarında geçersiniz.": "Выбранные карточки занимают место этой карточки; переключайтесь между ними вкладками под заголовком.",
+ "Sekmeli kartlar": "Карточки с вкладками",
+ "Kart ayarlarının Davranış sekmesinde birleştirmek istediğiniz kartları seçin. Kartlar aynı yerde durur; başlığın altındaki sekmelerle aralarında geçersiniz.": "На вкладке «Поведение» в параметрах карточки выберите карточки, которые нужно объединить. Они занимают одно место; переключайтесь между ними вкладками под заголовком."
 }

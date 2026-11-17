@@ -639,6 +639,14 @@ class FenceWindow(QWidget):
 
         self.title = TitleBar(self)
         lay.addWidget(self.title)
+        # Sekme şeridi: kart bir sekme grubundaysa gruptaki kartların adları
+        self.tabs_bar = named(QWidget(), "tabs")
+        tb = QHBoxLayout(self.tabs_bar)
+        tb.setContentsMargins(10, 0, 10, 6)
+        tb.setSpacing(4)
+        self.tabs_bar.hide()
+        self._tabs = []  # (düğme, kart)
+        lay.addWidget(self.tabs_bar)
 
         self.stack = QStackedWidget()
         page = named(QWidget(), "page")
@@ -790,6 +798,7 @@ class FenceWindow(QWidget):
         super().resizeEvent(e)
         g = self.grip.sizeHint()
         self.grip.move(self.frame.width() - g.width() - 4, self.frame.height() - g.height() - 4)
+        self.fit_tabs()
         if self._blur and self.isVisible():  # boyutlanırken bulanıklık takılma yapar: bitene kadar kapat
             self.suspend_blur()
             self._resume_timer.start()
@@ -865,6 +874,7 @@ class FenceWindow(QWidget):
         self._folded = folded
         self.title.fold.setText("\uE76C" if folded else "\uE70D")
         self.stack.setVisible(not folded)
+        self.tabs_bar.setVisible(not folded and len(self._tabs) > 1)
         self.frame.layout().setContentsMargins(0, 0, 0, 0 if folded else 6)
         if folded:
             self.setFixedHeight(TITLE_H + 2)
@@ -906,6 +916,40 @@ class FenceWindow(QWidget):
         super().leaveEvent(e)
         if self._peek:
             self._peek_timer.start()
+
+    def update_tabs(self):
+        """Sekme şeridini grubun güncel üyelerine göre yeniden kurar."""
+        members = self.app.group_of(self)
+        lay = self.tabs_bar.layout()
+        while lay.count():
+            w = lay.takeAt(0).widget()
+            if w:
+                w.setParent(None)
+                w.deleteLater()
+        self._tabs = []
+        if len(members) > 1:
+            for m in members:
+                b = named(QPushButton(), "tab")
+                b.setCheckable(True)
+                b.setChecked(m is self)
+                b.setCursor(Qt.PointingHandCursor)
+                b.setMinimumWidth(24)
+                b.setToolTip(m.data["name"])
+                # Sekme değişince bu şerit yeniden kurulur: tıklama bittikten sonra uygula
+                b.clicked.connect(lambda _=False, card=m: QTimer.singleShot(0, lambda: self.app.activate_tab(card)))
+                lay.addWidget(b, 1)
+                self._tabs.append((b, m))
+        self.tabs_bar.setVisible(len(self._tabs) > 1 and not self.is_folded())
+        self.fit_tabs()
+
+    def fit_tabs(self):
+        """Sekme adlarını eldeki genişliğe göre kısaltır."""
+        if not self._tabs:
+            return
+        room = max(24, (self.width() - 20 - 4 * (len(self._tabs) - 1)) // len(self._tabs) - 18)
+        for b, m in self._tabs:
+            name = f"{m.data['emoji']} {m.data['name']}" if m.data.get("emoji") else m.data["name"]
+            b.setText(b.fontMetrics().elidedText(name, Qt.ElideRight, room))
 
     def store_note(self):
         if self.kind == "note" and self.data.get("text", "") != self.note.toPlainText():

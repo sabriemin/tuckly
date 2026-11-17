@@ -312,5 +312,12 @@
  "Kartların yeri, boyutu ve içeriği bir adla saklanır; sonra tek tıkla geri yüklenir.": "La posición, el tamaño y el contenido de las tarjetas se guardan con un nombre y se restauran después con un clic.",
  "Yükle": "Cargar",
  "Sil": "Eliminar",
- "{0} kart · {1}": "{0} tarjetas · {1}"
+ "{0} kart · {1}": "{0} tarjetas · {1}",
+ "örn: fatura, rapor": "p. ej.: factura, informe",
+ "Ada göre": "Por nombre",
+ "Adında bu sözcüklerden biri geçen öğeler, türü ne olursa olsun bu karta yerleşir.": "Los elementos cuyo nombre contiene una de estas palabras se colocan en esta tarjeta, sea cual sea su tipo.",
+ "Sekmeler": "Pestañas",
+ "Seçtiğiniz kartlar bu kartla aynı yerde durur; başlığın altındaki sekmelerle aralarında geçersiniz.": "Las tarjetas seleccionadas comparten el lugar de esta; cambie entre ellas con las pestañas bajo el título.",
+ "Sekmeli kartlar": "Tarjetas con pestañas",
+ "Kart ayarlarının Davranış sekmesinde birleştirmek istediğiniz kartları seçin. Kartlar aynı yerde durur; başlığın altındaki sekmelerle aralarında geçersiniz.": "En la pestaña Comportamiento de los ajustes de la tarjeta, seleccione las tarjetas que quiere combinar. Comparten un mismo lugar; cambie entre ellas con las pestañas bajo el título."
 }

@@ -85,6 +85,9 @@ GUIDE = (
           "aynı işlemle geri gelir.")),
     ("", mark("Kartta arama ve simge"),
      mark("Kalabalık kartlarda başlıktaki büyüteçle öğe arayın. Kart ayarlarından başlığa bir simge ekleyin.")),
+    ("", mark("Sekmeli kartlar"),
+     mark("Kart ayarlarının Davranış sekmesinde birleştirmek istediğiniz kartları seçin. Kartlar aynı yerde durur; "
+          "başlığın altındaki sekmelerle aralarında geçersiniz.")),
     ("", mark("Çıkış"),
      mark("Tuckly kapanınca gizlenen simgeler masaüstüne geri gelir; dosyalarınız hiçbir zaman taşınmaz.")),
 )

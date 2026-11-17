@@ -334,9 +334,11 @@ class FencesApp:
         self.rest = next((f for f in self.fences if f.kind == "rest"), None)
         if self.rest:
             self.rest.refresh()
+        self.normalize_groups()
         for f in self.fences:
-            if not self.cards_hidden and (f.kind != "rest" or self.config.get("hide_icons")):
+            if self.should_show(f):
                 f.show()
+        self.refresh_tabs()
 
     def check_shell(self):
         """Masaüstü penceresi değiştiyse (Gezgin yeniden başladı) kartları yeniden kurar."""
@@ -562,6 +564,8 @@ class FencesApp:
 
     def fence_changed(self, fence, source=None):
         fence.apply_settings()
+        if fence.data.get("group"):  # sekmelerde görünen ad değişmiş olabilir
+            self.refresh_tabs()
         panel = getattr(self, "panel", None)
         for ed in (fence.settings, panel.editor if panel else None):
             if ed and ed is not source and ed.fence is fence:
@@ -615,9 +619,18 @@ class FencesApp:
         if fence.kind == "desktop":  # karttaki dosyalar masaüstünde yeniden görünsün
             for p in fence.data["items"]:
                 self._hide(p, False)
+        if fence.data.get("group"):  # sekme grubundaysa önce gruptan çıkar: yerine başka sekme gelir
+            was_active = fence.data.get("tab_active")
+            others = [m for m in self.group_of(fence) if m is not fence]
+            fence.data.pop("group", None)
+            if was_active and others:
+                others[0].data["tab_active"] = True
+                others[0].move(fence.pos())
+                others[0].data["x"], others[0].data["y"] = fence.x(), fence.y()
         self.config["fences"].remove(fence.data)
         self.fences.remove(fence)
         fence.vanish()
+        self._apply_groups()
         self.save()
         self.refresh_all()
         self.panel.reload_cards()
@@ -627,10 +640,11 @@ class FencesApp:
     def plan_sort(self, min_age=0.0):
         """Henüz hiçbir karta yerleşmemiş masaüstü öğelerini kartların kategorilerine göre eşleştirir.
         Aynı kategori birden çok kartta seçiliyse listede önce gelen kart kazanır."""
-        exts, folder_card = {}, None
+        exts, folder_card, words = {}, None, []
         for f in self.fences:
             if f.kind != "desktop" or f.data.get("lock_content"):  # içeriği kilitli karta yerleştirme
                 continue
+            words += [(w, f) for w in f.data.get("name_rules", [])]  # adında bu sözcük geçen öğeler
             for key in f.data.get("categories", []):
                 if key == "folders":
                     folder_card = folder_card or f
@@ -644,14 +658,16 @@ class FencesApp:
             try:
                 if norm(p) in taken:
                     continue
+                # Ad kuralı tür kuralından önce gelir: "fatura" geçen PDF, Belgeler yerine Faturalar kartına gider
+                named_card = next((card for w, card in words if w in p.name.lower()), None)
                 if p.is_dir():
-                    f = folder_card
+                    f = named_card or folder_card
                 else:
                     if p.suffix.lower() in PARTIAL_EXT:
                         continue
                     if min_age and now - p.stat().st_mtime < min_age:
                         continue
-                    f = exts.get(p.suffix.lower().lstrip("."))
+                    f = named_card or exts.get(p.suffix.lower().lstrip("."))
             except OSError:
                 continue
             if f:
@@ -707,7 +723,7 @@ class FencesApp:
         set_desktop_icons_visible(not on)
         if self.rest:  # simgeler gizliyken kartsız öğeler "Diğer" kartında görünür
             self.rest.refresh()
-            self.rest.setVisible(on and not self.cards_hidden)
+            self.rest.setVisible(self.should_show(self.rest))
 
     # ---- Kartları geçici olarak gizleme, kısayollar ve yapıştırma
     def set_cards_hidden(self, hidden: bool):
@@ -715,7 +731,94 @@ class FencesApp:
         self.cards_hidden = hidden
         self.close_popups()
         for f in self.fences:
-            f.setVisible(not hidden and (f.kind != "rest" or bool(self.config.get("hide_icons"))))
+            f.setVisible(self.should_show(f))
+
+    def should_show(self, fence) -> bool:
+        """Kart şu an ekranda mı olmalı? Sekme grubunda yalnızca seçili sekmenin kartı görünür."""
+        if self.cards_hidden:
+            return False
+        if fence.kind == "rest" and not self.config.get("hide_icons"):
+            return False
+        return not fence.data.get("group") or bool(fence.data.get("tab_active"))
+
+    # ---- Sekmeli kartlar: aynı gruptaki kartlar aynı yerde durur, sekmelerle aralarında geçilir
+    def group_of(self, fence) -> list:
+        gid = fence.data.get("group")
+        return [f for f in self.fences if gid and f.data.get("group") == gid]
+
+    def normalize_groups(self):
+        """Tek kartı kalan grupları dağıtır; her grupta tam bir seçili sekme bırakır."""
+        groups = {}
+        for f in self.fences:
+            if f.data.get("group") and f.kind != "rest":
+                groups.setdefault(f.data["group"], []).append(f)
+            else:
+                f.data.pop("group", None)
+                f.data.pop("tab_active", None)
+        for members in groups.values():
+            if len(members) < 2:
+                members[0].data.pop("group", None)
+                members[0].data.pop("tab_active", None)
+                continue
+            active = next((m for m in members if m.data.get("tab_active")), members[0])
+            for m in members:
+                m.data["tab_active"] = m is active
+
+    def refresh_tabs(self):
+        for f in self.fences:
+            f.update_tabs()
+
+    def _apply_groups(self):
+        self.normalize_groups()
+        for f in self.fences:
+            f.setVisible(self.should_show(f))
+        self.refresh_tabs()
+        self.save()
+        self.panel.editor.load()
+        for f in self.fences:
+            if f.settings:
+                f.settings.load()
+
+    def activate_tab(self, target):
+        """Gruptaki başka bir kartı öne alır; kart, o an görünen sekmenin yerini ve boyutunu devralır."""
+        members = self.group_of(target)
+        current = next((m for m in members if m.data.get("tab_active")), None)
+        if not members or current is target:
+            return
+        if current:
+            current.store_note()
+            for key in ("x", "y", "w", "h"):
+                target.data[key] = current.data.get(key, target.data.get(key))
+            target.move(current.pos())
+            target.resize(current.width(), target.height() if target.is_folded() else current.data.get("h", 230))
+        for m in members:
+            m.data["tab_active"] = m is target
+        self.close_popups()
+        self._apply_groups()
+
+    def set_grouped(self, fence, other, on: bool):
+        """`other` kartını `fence` ile aynı sekme grubuna alır ya da gruptan çıkarır."""
+        if fence.kind == "rest" or other.kind == "rest" or fence is other:
+            return
+        if on:
+            gid = fence.data.get("group") or os.urandom(4).hex()
+            if not fence.data.get("group"):
+                fence.data["group"], fence.data["tab_active"] = gid, True
+            other.data["group"], other.data["tab_active"] = gid, False
+        elif other.data.get("group"):
+            was_active = other.data.get("tab_active")
+            rest = [m for m in self.group_of(other) if m is not other]
+            other.data.pop("group", None)
+            other.data.pop("tab_active", None)
+            if was_active and rest:
+                rest[0].data["tab_active"] = True
+                for key in ("x", "y", "w", "h"):
+                    rest[0].data[key] = other.data.get(key, rest[0].data.get(key))
+                rest[0].move(other.pos())
+            # Ayrılan kart, grubun yanında kendi yerinde açılır
+            other.move(other.x() + 40, other.y() + 40)
+            other.data["x"], other.data["y"] = other.x(), other.y()
+        self._apply_groups()
 
     def toggle_cards(self):
         self.set_cards_hidden(not self.cards_hidden)
