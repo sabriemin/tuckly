@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Docks and taskbar tools that read the window class icon (for example Nectar) now show the Tuckly logo
+
 ## 0.1.1
 
 - About page shows the developer with a link to their GitHub profile

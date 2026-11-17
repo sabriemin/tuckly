@@ -29,8 +29,8 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from .i18n import LANGUAGES, current_language, mark, t
-from .config import APP_NAME, AUTHOR, AUTHOR_URL, DATA_DIR, DEFAULT_FONT, REPO_URL
-from .winapi import set_dark_titlebar
+from .config import APP_NAME, AUTHOR, AUTHOR_URL, DATA_DIR, DEFAULT_FONT, REPO_URL, resource
+from .winapi import set_class_icon, set_dark_titlebar
 from .theme import ACCENT_MODES, STYLES, appearance, dot_icon, make_app_icon, panel_look, panel_style, seed_of
 from .widgets import (
     NavButton,
@@ -212,6 +212,7 @@ class ControlPanel(QWidget):
     def showEvent(self, e):
         super().showEvent(e)
         set_dark_titlebar(self, not self.look.light)
+        set_class_icon(self, resource("tuckly.ico"))  # dock araçları simgeyi pencere sınıfından okur
         self.setFocus()  # açılışta arama kutusu seçili görünmesin
 
     def apply_look(self):

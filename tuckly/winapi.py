@@ -320,3 +320,32 @@ def allow_foreground():
         user32.AllowSetForegroundWindow(-1)  # ASFW_ANY
     except Exception:  # noqa: BLE001
         pass
+
+
+_class_icons = []  # yüklenen simge tutamaçları; pencere sınıfı kullandığı sürece yaşamalı
+
+
+def set_class_icon(widget, ico_path) -> bool:
+    """Pencere sınıfının simgesini uygulama logosu yapar.
+
+    Qt pencere sınıfını Windows'un genel uygulama simgesiyle kaydeder; pencere simgesini ayrıca verir.
+    Simgeyi sınıftan okuyan dock ve görev çubuğu araçları bu yüzden boş simge gösterir.
+    """
+    try:
+        hwnd = int(widget.winId())
+        get = getattr(user32, "SetClassLongPtrW", user32.SetClassLongW)
+        get.restype = ctypes.c_void_p
+        get.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]
+        user32.LoadImageW.restype = ctypes.c_void_p
+        user32.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT, ctypes.c_int,
+                                      ctypes.c_int, wintypes.UINT]
+        done = False
+        for index, size in ((-14, 48), (-34, 16)):  # GCLP_HICON, GCLP_HICONSM
+            icon = user32.LoadImageW(None, str(ico_path), 1, size, size, 0x10)  # IMAGE_ICON, LR_LOADFROMFILE
+            if icon:
+                _class_icons.append(icon)
+                get(hwnd, index, icon)
+                done = True
+        return done
+    except (OSError, AttributeError, ValueError):
+        return False
