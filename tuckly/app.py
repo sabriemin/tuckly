@@ -59,6 +59,7 @@ from .notifications import AVAILABLE as BADGES_AVAILABLE, NotificationWatcher
 from .panel import ControlPanel
 from .shortcuts import DesktopClickWatcher, Hotkeys
 from .launcher import Launcher
+from .infocards import KIND_DEFAULTS
 from .tour import Tour
 from .updater import UpdateChecker, is_newer
 
@@ -78,6 +79,7 @@ class FencesApp:
         self.fences: list[FenceWindow] = []
         self.cards_hidden = False  # tüm kartlar geçici olarak gizli (çift tıklama / kısayol)
         self.fullscreen_hidden = False  # tam ekran uygulama çalıştığı için gizli
+        self.picked = []  # Ctrl+tıkla seçilen kartlar: birlikte taşınır ve hizalanır
 
         if not self.config.get("fences"):
             self.create_defaults()
@@ -365,6 +367,7 @@ class FencesApp:
         self.rebuild_cards()
 
     def rebuild_cards(self):
+        self.picked = []
         for f in self.fences:
             if f.popup:
                 f.popup.hide()
@@ -606,7 +609,9 @@ class FencesApp:
         if self.cards_hidden:  # yeni kart görünsün
             self.set_cards_hidden(False)
         if name is None:
-            base, i = t("Not") if note else t("Son kullanılanlar") if kind == "recent" else t("Yeni Kart"), 2
+            base = (t("Not") if note else t("Son kullanılanlar") if kind == "recent"
+                    else t(KIND_DEFAULTS[kind][0]) if kind in KIND_DEFAULTS else t("Yeni Kart"))
+            i = 2
             names = {f.data["name"] for f in self.fences}
             name = base
             while name in names:
@@ -622,6 +627,8 @@ class FencesApp:
             x, y = geo.center().x() - 170 + off, geo.center().y() - 115 + off
         kind = kind or ("note" if note else "folder" if folder else "desktop")
         data = self._fence_data(name, [], snap(x), snap(y), kind=kind, folder=folder)
+        if kind in KIND_DEFAULTS:
+            data["w"], data["h"] = KIND_DEFAULTS[kind][1:]
         # "Diğer" kartı listenin sonunda kalsın
         idx = self.fences.index(self.rest) if self.rest in self.fences else len(self.fences)
         self.config["fences"].insert(idx, data)
@@ -630,6 +637,45 @@ class FencesApp:
         f.show()
         self.save()
         return f
+
+    # ---- Çoklu kart seçimi
+    def toggle_pick(self, fence):
+        if fence in self.picked:
+            self.picked.remove(fence)
+        elif fence.kind != "rest":
+            self.picked.append(fence)
+        fence.set_picked(fence in self.picked)
+
+    def clear_picks(self):
+        for fence in self.picked:
+            fence.set_picked(False)
+        self.picked = []
+
+    def arrange_picks(self, mode, ref):
+        """Seçili kartları hizalar ya da boyutlandırır. ref: menünün açıldığı kart."""
+        cards = [f for f in self.picked if f in self.fences and f.isVisible()]
+        movable = [f for f in cards if not self.locked and not f.data.get("lock_pos")]
+        if mode == "left":
+            x = min(f.x() for f in cards)
+            for f in movable:
+                f.move(x, f.y())
+        elif mode == "top":
+            y = min(f.y() for f in cards)
+            for f in movable:
+                f.move(f.x(), y)
+        elif mode == "size":
+            for f in cards:
+                if f is not ref and not self.locked and not f.data.get("lock_size"):
+                    f.data["h"] = ref.data.get("h", f.data.get("h", 230))
+                    f.resize(ref.width(), f.height() if f.is_folded() else f.data["h"])
+        elif mode == "stack":
+            x, y = min(f.x() for f in cards), min(f.y() for f in cards)
+            for f in sorted(cards, key=lambda c: c.y()):
+                if f in movable:
+                    f.move(x, y)
+                y = f.y() + f.height() + 10
+        for f in cards:
+            f.store_geometry()
 
     def apply_template(self, key):
         """Hazır bir kart setini ekler; var olan kartlara ve dosyalara dokunmaz."""
@@ -667,6 +713,8 @@ class FencesApp:
                 others[0].data["tab_active"] = True
                 others[0].move(fence.pos())
                 others[0].data["x"], others[0].data["y"] = fence.x(), fence.y()
+        if fence in self.picked:
+            self.picked.remove(fence)
         self.config["fences"].remove(fence.data)
         self.fences.remove(fence)
         fence.vanish()

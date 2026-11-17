@@ -284,6 +284,7 @@ def card_style(look: Look, blur: bool, solid: bool = False) -> str:
 #fence {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, {body});
           border: 1px solid {border}; border-radius: {radius}px; }}
 #fence[drop="true"] {{ border: 2px solid {look.accent.name()}; }}
+#fence[picked="true"] {{ border: 2px dashed {look.accent.name()}; }}
 #titleLock {{ font: 8pt "Segoe MDL2 Assets"; color: rgba({fg},170); }}
 #titleEdit {{ padding: 2px 6px; border-radius: 6px; {look.font_css(1, 600)} }}
 #title {{ background: transparent; }}
@@ -314,6 +315,28 @@ QPushButton#tab:checked {{ background: {look.accent.name()}; color: {look.on_acc
 QTextEdit#note {{ background: transparent; border: none; color: rgb({fg}); padding: 2px 10px 6px 12px;
                        selection-background-color: {look.accent.name()}; selection-color: {look.on_accent};
                        {look.font_css(1, 400)} }}
+#clockTime {{ color: rgb({fg}); }}
+#clockDate {{ color: rgba({fg},170); {look.font_css(0, 400)} }}
+#calHead {{ color: rgb({fg}); {look.font_css(1, 600)} }}
+#calWeekday {{ color: rgba({fg},120); {look.font_css(-1, 600)} }}
+#calDay {{ color: rgba({fg},228); border-radius: 8px; {look.font_css(0, 400)} }}
+#calDay[state="out"] {{ color: rgba({fg},72); }}
+#calDay[state="today"] {{ background: {look.accent.name()}; color: {look.on_accent}; font-weight: 700; }}
+QToolButton#calNav {{ color: rgba({fg},200); background: rgba({fg},22); border: none; border-radius: 7px;
+                      font: 8pt "Segoe MDL2 Assets"; min-width: 24px; max-width: 24px;
+                      min-height: 22px; max-height: 22px; }}
+QToolButton#calNav:hover {{ background: rgba({fg},50); color: rgb({fg}); }}
+#wxIcon {{ font-family: "Segoe UI Emoji"; font-size: 28pt; }}
+#wxTemp {{ color: rgb({fg}); font-size: 26pt; font-weight: 600; }}
+#wxPlace {{ color: rgb({fg}); {look.font_css(1, 600)} }}
+#wxText {{ color: rgba({fg},170); {look.font_css(0, 400)} }}
+#wxDay {{ color: rgba({fg},215); background: rgba({fg},14); border-radius: 10px; padding: 6px 2px;
+          {look.font_css(-0.5, 500)} }}
+#clipList, #linkList {{ background: transparent; outline: 0; color: rgba({fg},232); {look.font_css(0, 400)} }}
+#clipList::item {{ padding: 7px 9px; border-radius: 8px; background: rgba({fg},14); margin-bottom: 4px; }}
+#clipList::item:hover, #clipList::item:selected {{ background: rgba({fg},36); color: rgb({fg}); }}
+#linkList::item {{ border-radius: 10px; padding: 4px; }}
+#linkList::item:hover, #linkList::item:selected {{ background: rgba({fg},30); color: rgb({fg}); }}
 #noteBar {{ background: transparent; }}
 #noteBar QToolButton {{ color: rgba({fg},170); background: transparent; border: none; border-radius: 6px;
                         font: 9pt "Segoe MDL2 Assets"; min-width: 24px; max-width: 24px;

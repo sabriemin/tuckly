@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from .i18n import t
+from .infocards import INFO_KINDS
 from .config import CATEGORIES, DAYS, EMOJIS, ICON_SIZES, NOTE_SIZES, PAPERS, SORT_MODES
 from .theme import appearance
 from .widgets import SwatchRow, Toggle, label, make_group, named, segmented, setting_row
@@ -237,6 +238,64 @@ class CardSettings(QWidget):
                           "Yalnızca masaüstü simgeleri gizliyken görünür."), icon=""),
         ])
         v.addWidget(self.rest_info)
+
+        # Saat kartı
+        self.clock_seconds, self.clock_24h = Toggle(False), Toggle(True)
+        self.clock_seconds.toggled.connect(lambda on: self.on_info("clock_seconds", on))
+        self.clock_24h.toggled.connect(lambda on: self.on_info("clock_24h", on))
+        # Hava durumu kartı
+        self.city = QLineEdit()
+        self.city.setPlaceholderText(t("örn: İstanbul"))
+        self.city.editingFinished.connect(lambda: self.on_info("city", self.city.text().strip()))
+        unit_box, self.units = segmented((("°C", 0), ("°F", 1)), lambda i: self.on_info("fahrenheit", bool(i)))
+        self.weather_status = label("", "rowValue")
+        # Pano kartı
+        clear = QPushButton(t("Temizle"))
+        clear.setCursor(Qt.PointingHandCursor)
+        clear.clicked.connect(lambda: self.fence and self.fence.info and self.fence.info.clear())
+        # Bağlantılar kartı
+        link_box = QWidget()
+        lb = QHBoxLayout(link_box)
+        lb.setContentsMargins(0, 0, 0, 0)
+        lb.setSpacing(6)
+        self.link_url = QLineEdit()
+        self.link_url.setPlaceholderText(t("örn: github.com"))
+        self.link_url.returnPressed.connect(self.on_link_add)
+        lb.addWidget(self.link_url, 1)
+        add = named(QPushButton(t("Ekle")), "primary")
+        add.setCursor(Qt.PointingHandCursor)
+        add.clicked.connect(self.on_link_add)
+        lb.addWidget(add)
+        self.info_groups = {
+            "clock": make_group([
+                setting_row(t("Saniyeyi göster"), control=self.clock_seconds, icon="\uE823"),
+                setting_row(t("24 saat biçimi"), control=self.clock_24h, icon="\uE916"),
+            ]),
+            "calendar": make_group([
+                setting_row(t("Takvim"), t("Oklarla aylar arasında gezin; ay adına tıklayınca bugüne döner."),
+                            icon="\uE787"),
+            ]),
+            "weather": make_group([
+                setting_row(t("Şehir"), t("Hava durumu Open-Meteo'dan alınır; servise yalnızca bu şehrin adı ve "
+                                          "konumu gönderilir. Yarım saatte bir yenilenir."),
+                            below=self.city, icon="\uE707"),
+                setting_row(t("Sıcaklık birimi"), below=unit_box, value=self.weather_status, icon="\uE9CA"),
+            ]),
+            "clipboard": make_group([
+                setting_row(t("Pano geçmişi"),
+                            t("Son kopyaladığınız 20 metni tutar; birine tıklamak onu yeniden kopyalar. Geçmiş "
+                              "yalnızca bellekte durur, diske yazılmaz ve Tuckly kapanınca silinir."),
+                            control=clear, icon="\uE77F"),
+            ]),
+            "links": make_group([
+                setting_row(t("Adres ekle"),
+                            t("Adresi yazıp ekleyin ya da tarayıcıdan kartın üzerine sürükleyin. Site simgesi "
+                              "sitenin kendisinden indirilir."),
+                            below=link_box, icon="\uE71B"),
+            ]),
+        }
+        for group in self.info_groups.values():
+            v.addWidget(group)
 
         # Son kullanılanlar kartı: açıklama ve öğe sayısı
         count_box, self.recent_counts = segmented((("10", 10), ("20", 20), ("30", 30)), self.on_recent_count)
@@ -460,8 +519,16 @@ class CardSettings(QWidget):
         self.rest_info.setVisible(kind == "rest")
         self.note_info.setVisible(kind == "note")
         self.recent_info.setVisible(kind == "recent")
+        for key, group in self.info_groups.items():
+            group.setVisible(kind == key)
+        self.clock_seconds.setChecked(bool(d.get("clock_seconds")))
+        self.clock_24h.setChecked(bool(d.get("clock_24h", True)))
+        if force or not self.city.hasFocus():
+            self.city.setText(d.get("city", ""))
+        self.units.button(1 if d.get("fahrenheit") else 0).setChecked(True)
+        self.weather_status.setText(f.info.status if kind == "weather" and f.info else "")
         (self.recent_counts.button(int(d.get("recent_count", 20))) or self.recent_counts.button(20)).setChecked(True)
-        self.file_group.setVisible(kind != "note")
+        self.file_group.setVisible(kind != "note" and kind not in INFO_KINDS)
         self.note_group.setVisible(kind == "note")
         size = d.get("note_size", 0)
         (self.note_sizes.button(size) or self.note_sizes.button(0)).setChecked(True)
@@ -478,7 +545,7 @@ class CardSettings(QWidget):
         self.confirm_text.setText(
             t("Klasör ve içindekiler olduğu gibi kalır.") if kind == "folder" else
             t("Kartla birlikte içindeki not da silinir.") if kind == "note" else
-            t("Dosyalara dokunulmaz.") if kind == "recent" else
+            t("Dosyalara dokunulmaz.") if kind == "recent" or kind in INFO_KINDS else
             t("İçindeki dosyalar masaüstünde olduğu gibi kalır."))
         self.folder.setText(str(f.folder) if f.folder else "")
         self._loading = False
@@ -503,6 +570,21 @@ class CardSettings(QWidget):
             }
             self.schedule_box.setVisible(self.schedule_on.isChecked())
             self._changed()
+
+    def on_info(self, key, value):
+        """Bilgi kartının (saat, hava durumu) bir ayarını değiştirir ve görünümü yeniler."""
+        if self.fence and not self._loading and self.fence.data.get(key) != value:
+            self.fence.data[key] = value
+            if self.fence.info:
+                self.fence.info.reload()
+            self._changed()
+
+    def on_link_add(self):
+        if self.fence and self.fence.kind == "links":
+            if self.fence.info.add(self.link_url.text()):
+                self.link_url.clear()
+            else:
+                self.app.notify(t("Bu bir web adresi değil."), warn=True)
 
     def on_recent_count(self, count):
         if self.fence:

@@ -71,6 +71,7 @@ BADGE_ROLE = Qt.UserRole + 1  # öğenin bildirim sayısı
 from dataclasses import replace
 
 from .note import NoteEdit
+from .infocards import INFO_KINDS, VIEWS
 
 class TileDelegate(QStyledItemDelegate):
     def __init__(self, view):
@@ -364,6 +365,8 @@ class TitleBar(QWidget):
         self._drag = None
         self._moved = False
         self._snapped = (False, False)  # taşırken yatay/dikey olarak bir kenara yapıştı mı
+        self._origin = QPoint()
+        self._group = []  # birlikte taşınan seçili kartlar: (kart, başlangıç konumu)
         self._name = ""
         self._hover = False
 
@@ -463,9 +466,19 @@ class TitleBar(QWidget):
         return super().eventFilter(obj, e)
 
     def mousePressEvent(self, e):
-        if e.button() == Qt.LeftButton and not self.fence.app.locked and not self.fence.data.get("lock_pos"):
+        app = self.fence.app
+        if e.button() == Qt.LeftButton and e.modifiers() & Qt.ControlModifier:
+            app.toggle_pick(self.fence)  # Ctrl+tık: kartı çoklu seçime ekler ya da çıkarır
+            return
+        if e.button() == Qt.LeftButton and app.picked and self.fence not in app.picked:
+            app.clear_picks()
+        if e.button() == Qt.LeftButton and not app.locked and not self.fence.data.get("lock_pos"):
             self._drag = e.globalPosition().toPoint() - self.fence.frameGeometry().topLeft()
             self._snapped = (False, False)
+            self._origin = self.fence.pos()
+            # Seçili kartlar birlikte taşınır
+            self._group = [(f, f.pos()) for f in app.picked
+                           if f is not self.fence and not f.data.get("lock_pos")] if self.fence in app.picked else []
             self.setCursor(Qt.ClosedHandCursor)
 
     def mouseMoveEvent(self, e):
@@ -473,12 +486,17 @@ class TitleBar(QWidget):
             if not self._moved:  # sürükleme başladı: bulanıklık taşırken takılma yapar, geçici olarak kapat
                 self._moved = True
                 self.fence.suspend_blur()
+                for other, _ in self._group:
+                    other.suspend_blur()
             pos = e.globalPosition().toPoint() - self._drag
             self._snapped = (False, False)
             # Ekran kenarına ve diğer kartlara yapıştırma; Alt basılıyken serbest taşınır
             if self.fence.app.config.get("magnet", True) and not e.modifiers() & Qt.AltModifier:
                 pos, self._snapped = self.fence.magnet(pos)
             self.fence.move(pos)
+            delta = pos - self._origin
+            for other, start in self._group:
+                other.move(start + delta)
 
     def mouseReleaseEvent(self, e):
         if self._drag is not None:
@@ -491,6 +509,27 @@ class TitleBar(QWidget):
             sx, sy = self._snapped  # bir kenara yapışan eksen ızgaraya yuvarlanmaz: hizası bozulmasın
             self.fence.move(pos.x() if sx else snap(pos.x()), pos.y() if sy else snap(pos.y()))
             self.fence.store_geometry()
+            delta = self.fence.pos() - self._origin
+            for other, start in self._group:
+                other.move(start + delta)
+                other.resume_blur()
+                other.store_geometry()
+            self._group = []
+
+    def contextMenuEvent(self, e):
+        app = self.fence.app
+        m = QMenu(self)
+        if self.fence in app.picked and len(app.picked) > 1:
+            m.addAction(t("Sola hizala"), lambda: app.arrange_picks("left", self.fence))
+            m.addAction(t("Üste hizala"), lambda: app.arrange_picks("top", self.fence))
+            m.addAction(t("Bu kartla aynı boyut"), lambda: app.arrange_picks("size", self.fence))
+            m.addAction(t("Alt alta diz"), lambda: app.arrange_picks("stack", self.fence))
+            m.addSeparator()
+            m.addAction(t("Seçimi kaldır"), app.clear_picks)
+        else:
+            m.addAction(t("Kart ayarları"), lambda: self.fence.show_settings(True))
+            m.addAction(t("Seçime ekle (Ctrl+tık)"), lambda: app.toggle_pick(self.fence))
+        m.exec(e.globalPos())
 
     def mouseDoubleClickEvent(self, e):
         if e.button() == Qt.LeftButton and not self.fence.data.get("rollup"):
@@ -719,6 +758,12 @@ class FenceWindow(QWidget):
         bar.addStretch()
         nl.addWidget(self.note_bar)
         self.stack.addWidget(note_page)
+        # Dosya göstermeyen kartlar (saat, takvim, hava, pano, bağlantılar) kendi görünümünü kullanır
+        self.info = None
+        if self.kind in VIEWS:
+            self.info = VIEWS[self.kind](self)
+            self.stack.addWidget(self.info)
+            self.stack.setCurrentWidget(self.info)
         if self.kind == "note":
             self.stack.setCurrentIndex(1)
         lay.addWidget(self.stack, 1)
@@ -928,7 +973,7 @@ class FenceWindow(QWidget):
                               if d.get("remind") else t("Hatırlatıcı"))
         self.list.setDragEnabled(not locked)
         self.list.setEditTriggers(QAbstractItemView.NoEditTriggers if locked else QAbstractItemView.EditKeyPressed)
-        self.title.lock.setVisible(bool(d.get("lock_pos") or d.get("lock_size") or locked))
+        self.title.lock.setVisible(bool(d.get("lock_pos") or d.get("lock_size") or d.get("lock_content")))
         self.title.set_name(f"{d['emoji']} {d['name']}" if d.get("emoji") else d["name"])
         if self._folded is not None and self._folded != self.is_folded():  # "üzerine gelince aç" değişti
             self._fold(self.is_folded())
@@ -1088,7 +1133,7 @@ class FenceWindow(QWidget):
 
     def read_only(self) -> bool:
         """Karta öğe eklenip çıkarılamaz mı? İçerik kilidi ya da kendiliğinden dolan kart türleri."""
-        return bool(self.data.get("lock_content")) or self.kind == "recent"
+        return bool(self.data.get("lock_content")) or self.kind == "recent" or self.kind in INFO_KINDS
 
     # ---- Klasör kartında gezinme
     def in_subfolder(self) -> bool:
@@ -1224,6 +1269,8 @@ class FenceWindow(QWidget):
                 self._loading = False
 
     def refresh(self):
+        if self.info is not None:  # bu kartın içeriği dosya listesi değil
+            return
         entries = self.entries()
         shown = [self.list.item(i).data(Qt.UserRole) for i in range(self.list.count())]
         if not self._force_refresh and shown == [str(p) for p in entries]:
@@ -1383,13 +1430,30 @@ class FenceWindow(QWidget):
         m.exec(gpos)
 
     def dragEnterEvent(self, e):
-        self.list.dragEnterEvent(e)
+        if self.kind == "links":  # tarayıcıdan sürüklenen adres
+            self.begin_peek()
+            self.info.dragEnterEvent(e)
+        else:
+            self.list.dragEnterEvent(e)
 
     def dragMoveEvent(self, e):
-        self.list.dragMoveEvent(e)
+        if self.kind == "links":
+            self.info.dragMoveEvent(e)
+        else:
+            self.list.dragMoveEvent(e)
 
     def dragLeaveEvent(self, e):
         self.set_drop_highlight(False)
 
     def dropEvent(self, e):
-        self.list.dropEvent(e)
+        if self.kind == "links":
+            self.info.dropEvent(e)
+        else:
+            self.list.dropEvent(e)
+
+    def set_picked(self, on: bool):
+        """Kartı çoklu seçime dahil olarak işaretler (kenarı vurgulanır)."""
+        if self.frame.property("picked") != ("true" if on else "false"):
+            self.frame.setProperty("picked", "true" if on else "false")
+            self.frame.style().unpolish(self.frame)
+            self.frame.style().polish(self.frame)

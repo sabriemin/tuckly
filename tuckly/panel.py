@@ -33,6 +33,7 @@ from . import __version__
 from .i18n import LANGUAGES, current_language, mark, t
 from .config import APP_NAME, AUTHOR, AUTHOR_URL, DATA_DIR, DEFAULT_FONT, REPO_URL, TEMPLATES, resource
 from .winapi import set_class_icon, set_dark_titlebar
+from .infocards import INFO_KINDS, KIND_MENU
 from .theme import ACCENT_MODES, STYLES, appearance, dot_icon, make_app_icon, panel_look, panel_style, seed_of
 from .widgets import (
     NavButton,
@@ -91,6 +92,9 @@ GUIDE = (
           "başlığın altındaki sekmelerle aralarında geçersiniz.")),
     ("", mark("Hızlı başlatıcı"),
      mark("Ctrl+Alt+F'ye basın, bir öğenin adını yazın ve Enter ile açın. Tüm kartlardaki öğeleri ve notları arar.")),
+    ("", mark("Birden çok kart"),
+     mark("Kart başlıklarına Ctrl basılıyken tıklayarak birkaç kart seçin. Seçili kartlar birlikte taşınır; "
+          "başlığa sağ tıklayınca hizalama ve eşit boyut seçenekleri çıkar.")),
     ("", mark("Çıkış"),
      mark("Tuckly kapanınca gizlenen simgeler masaüstüne geri gelir; dosyalarınız hiçbir zaman taşınmaz.")),
 )
@@ -279,6 +283,9 @@ class ControlPanel(QWidget):
         menu.addAction(t("Klasör kartı…"), self.on_add_folder)
         menu.addAction(t("Not kartı"), self.on_add_note)
         menu.addAction(t("Son kullanılanlar kartı"), lambda: self.reload_cards(select=self.app.new_fence(kind="recent")))
+        menu.addSeparator()
+        for kind in INFO_KINDS:
+            menu.addAction(t(KIND_MENU[kind]), lambda k=kind: self.reload_cards(select=self.app.new_fence(kind=k)))
         menu.addSeparator()
         templates = menu.addMenu(t("Şablonlar"))
         for key, title, cards in TEMPLATES:

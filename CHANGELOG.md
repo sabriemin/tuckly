@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - Note cards have their own settings: text size, sticky-note paper colors and word wrap
 - Notes support to-do items with a done/total counter in the title, bullets, headings, bold, italic and strikethrough
@@ -13,6 +13,10 @@
 - Folder cards can be browsed: double-click a subfolder to enter it, with a back button and path bar
 - Recent files card that lists the files most recently opened in Windows
 - Card templates (Work, Gaming, Design, Student) that add a ready-made set of cards
+- Clock, calendar and weather cards; weather comes from Open-Meteo for a city you enter
+- Clipboard card that keeps the last 20 copied texts in memory only
+- Web links card with site icons; drag an address from the browser or add it in the settings
+- Select several cards with Ctrl+click to move them together, align them or give them the same size
 - Card settings have a separate Lock tab again; Behavior holds open-on-hover, schedule and tabs
 
 ## 0.2.0

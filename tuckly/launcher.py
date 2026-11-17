@@ -100,6 +100,9 @@ class Launcher(QWidget):
             if fence.kind == "note":
                 out.append((fence.data["name"], None, fence))
                 continue
+            if fence.kind == "links":
+                out += [(link["title"], link["url"], fence) for link in fence.data.get("links", [])]
+                continue
             for i in range(fence.list.count()):
                 it = fence.list.item(i)
                 out.append((it.text(), it.data(Qt.UserRole), fence))
@@ -122,7 +125,7 @@ class Launcher(QWidget):
         self.list.clear()
         for _, _, name, path, fence in scored[:MAX_RESULTS]:
             it = QListWidgetItem(f"{name}     ·  {fence.data['name']}" if path else f"{name}     ·  {t('Not')}")
-            if path:
+            if path and "://" not in path:
                 it.setIcon(self.app.icon_for(Path(path)))
             it.setData(Qt.UserRole, path)
             it.setData(FENCE_ROLE, fence)
