@@ -1,4 +1,8 @@
-"""Kart ayarları formu; hem kartın içinde hem kontrol panelinde kullanılır."""
+"""Kart ayarları formu; hem kartın ayar penceresinde hem kontrol panelinde kullanılır.
+
+Üç sekme vardır: Genel (ad, renk, opaklık, simge boyutu, sıralama), İçerik (kategoriler ya da
+klasör) ve Kilit (kilitler ve kartı kaldırma). Sekmeler sayesinde form kaydırma gerektirmeden sığar.
+"""
 
 import os
 
@@ -15,9 +19,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .i18n import t
 from .config import CATEGORIES, ICON_SIZES, SORT_MODES
 from .theme import appearance
-from .widgets import SwatchRow, Toggle, group_label, label, make_group, named, segmented, setting_row
+from .widgets import SwatchRow, Toggle, label, make_group, named, segmented, setting_row
 
 
 class CardSettings(QWidget):
@@ -30,16 +35,40 @@ class CardSettings(QWidget):
         self.setObjectName("cardSettings")
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(10, 2, 10, 12) if in_card else lay.setContentsMargins(0, 0, 6, 12)
-        lay.setSpacing(8)
+        lay.setContentsMargins(12, 2, 12, 12) if in_card else lay.setContentsMargins(0, 0, 6, 12)
+        lay.setSpacing(10)
 
-        # --- Kart
-        lay.addWidget(group_label("Kart"))
+        tab_box, self.tabs = segmented(((t("Temel"), 0), (t("İçerik"), 1), (t("Kilit"), 2)), self.set_tab)
+        lay.addWidget(tab_box)
+        # Sekmeler alt alta eklenir, yalnızca seçili olan gösterilir: form her zaman o sekmenin boyundadır
+        self.pages = [build() for build in (self._general_tab, self._content_tab, self._lock_tab)]
+        for page in self.pages:
+            lay.addWidget(page)
+        lay.addStretch()
+        self.set_tab(0)
+        self.setEnabled(False)
+
+    @staticmethod
+    def _tab():
+        page = named(QWidget(), "page")
+        v = QVBoxLayout(page)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(10)
+        return page, v
+
+    def set_tab(self, index):
+        self.tabs.button(index).setChecked(True)
+        for i, page in enumerate(self.pages):
+            page.setVisible(i == index)
+
+    # ---------------------------------------------------------------- Genel
+    def _general_tab(self):
+        page, v = self._tab()
         self.name = QLineEdit()
         self.name.textEdited.connect(self.on_name)
 
         # Kartın kendi rengi; "Genel" seçiliyse Görünüm sayfasındaki tema kullanılır
-        self.colors = SwatchRow(with_general=True, with_add=False, columns=10 if in_card else 16)
+        self.colors = SwatchRow(with_general=True, with_add=False, columns=10)
         self.colors.picked.connect(self.on_theme)
         self.theme_value = label("", "rowValue")
 
@@ -48,83 +77,75 @@ class CardSettings(QWidget):
         self.opacity.setRange(15, 100)
         self.opacity.valueChanged.connect(self.on_opacity)
         self.opacity_value = label("", "rowValue")
-        self.op_general = named(QPushButton("Genel"), "pill")
+        self.op_general = named(QPushButton(t("Genel")), "pill")
         self.op_general.setCheckable(True)
         self.op_general.setCursor(Qt.PointingHandCursor)
         self.op_general.clicked.connect(self.on_opacity_general)
+
         sizes_box, self.sizes = segmented(ICON_SIZES, self.on_size)
         self._sort_keys = [k for k, _ in SORT_MODES]
-        sort_box, self.sorts = segmented(tuple((t, i) for i, (_, t) in enumerate(SORT_MODES)),
+        sort_box, self.sorts = segmented(tuple((title, i) for i, (_, title) in enumerate(SORT_MODES)),
                                          lambda i: self.on_sort(self._sort_keys[i]))
-
         rows = [
-            setting_row("Ad", below=self.name),
-            setting_row("Renk", "Bu karta özel renk. Genel: görünüm ayarlarındaki tema.",
-                        below=self.colors, value=self.theme_value),
-            setting_row("Opaklık", "Bu karta özel saydamlık.", control=self.op_general,
-                        below=self.opacity, value=self.opacity_value),
-            setting_row("Simge boyutu", below=sizes_box),
-            setting_row("Sıralama", "Serbest: simgeleri kart içinde sürükleyerek dizersin.", below=sort_box),
+            setting_row(t("Ad"), below=self.name, icon=""),
+            setting_row(t("Renk"), t("Bu karta özel renk. Genel: görünüm ayarlarındaki tema."),
+                        below=self.colors, value=self.theme_value, icon=""),
+            setting_row(t("Opaklık"), t("Bu karta özel saydamlık."), control=self.op_general,
+                        below=self.opacity, value=self.opacity_value, icon=""),
+            setting_row(t("Simge boyutu"), below=sizes_box, icon=""),
+            setting_row(t("Sıralama"), t("Serbest: simgeleri kart içinde sürükleyerek dizersin."),
+                        below=sort_box, icon=""),
         ]
-        if in_card:
-            b = QPushButton("Aç")
-            b.setCursor(Qt.PointingHandCursor)
-            b.clicked.connect(lambda: self.app.show_panel(page=1))
-            rows.append(setting_row("Görünüm ayarları", "Stil, opaklık, yazı tipi ve daha fazlası.", control=b))
-        lay.addWidget(make_group(rows))
+        v.addWidget(make_group(rows))
+        return page
 
-        # --- Düzen (yalnızca masaüstü kartları)
-        self.rules_box = QWidget()
-        rl = QVBoxLayout(self.rules_box)
-        rl.setContentsMargins(0, 4, 0, 0)
-        rl.setSpacing(8)
-        rl.addWidget(group_label("Bu karta ne yerleşsin"))
+    # ---------------------------------------------------------------- İçerik
+    def _content_tab(self):
+        page, v = self._tab()
+
+        # Masaüstü kartı: kategoriler
         cats = QWidget()
         grid = QGridLayout(cats)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(6)
-        cols = 2 if in_card else 3
+        cols = 2 if self.in_card else 3
         self.cat_buttons = {}
         for i, (key, title, _) in enumerate(CATEGORIES):
-            b = named(QPushButton(title), "pill")
+            b = named(QPushButton(t(title)), "pill")
             b.setCheckable(True)
             b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(self.on_categories)
             self.cat_buttons[key] = b
             grid.addWidget(b, i // cols, i % cols)
         self.rules = QLineEdit()
-        self.rules.setPlaceholderText("örn: dwg, blend")
+        self.rules.setPlaceholderText(t("örn: dwg, blend"))
         self.rules.editingFinished.connect(self.on_rules)
-        go = QPushButton("Masaüstünü düzenle")
+        go = QPushButton(t("Masaüstünü düzenle"))
         go.setCursor(Qt.PointingHandCursor)
         go.clicked.connect(lambda: self.app.show_panel(page=2))
-        rl.addWidget(make_group([
-            setting_row("Kategoriler", "Seçtiğin türdeki masaüstü öğeleri düzenlemede bu karta yerleşir.",
-                        below=cats),
-            setting_row("Ek uzantılar", "İsteğe bağlı: listede olmayan dosya türleri, virgülle ayırarak.",
-                        below=self.rules),
-            setting_row("Şimdi uygula", "Kartsız öğeleri kategorilere göre yerleştir.", control=go),
-        ]))
-        lay.addWidget(self.rules_box)
+        self.rules_box = make_group([
+            setting_row(t("Kategoriler"), t("Seçtiğin türdeki masaüstü öğeleri düzenlemede bu karta yerleşir."),
+                        below=cats, icon=""),
+            setting_row(t("Ek uzantılar"), t("İsteğe bağlı: listede olmayan dosya türleri, virgülle ayırarak."),
+                        below=self.rules, icon=""),
+            setting_row(t("Şimdi uygula"), t("Kartsız öğeleri kategorilere göre yerleştir."), control=go,
+                        icon=""),
+        ])
+        v.addWidget(self.rules_box)
 
-        # --- Klasör (yalnızca klasör kartları)
-        self.folder_box = QWidget()
-        fbl = QVBoxLayout(self.folder_box)
-        fbl.setContentsMargins(0, 4, 0, 0)
-        fbl.setSpacing(8)
-        fbl.addWidget(group_label("Klasör"))
+        # Klasör kartı: konum
         self.folder = label("", "rowDesc", wrap=True)
         self.folder.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.folder.setMinimumWidth(10)
         self.folder.setTextInteractionFlags(Qt.TextSelectableByMouse)
         fb = QHBoxLayout()
         fb.setSpacing(6)
-        b = QPushButton("Aç")
+        b = QPushButton(t("Aç"))
         b.setCursor(Qt.PointingHandCursor)
         b.clicked.connect(lambda: self.fence and os.startfile(str(self.fence.folder)))
         fb.addWidget(b)
-        if not in_card:
-            b = QPushButton("Değiştir…")
+        if not self.in_card:
+            b = QPushButton(t("Değiştir…"))
             b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(self.on_change_folder)
             fb.addWidget(b)
@@ -135,63 +156,70 @@ class CardSettings(QWidget):
         fl.setSpacing(6)
         fl.addWidget(self.folder)
         fl.addLayout(fb)
-        fbl.addWidget(make_group([setting_row("Konum", "Bu kart bir klasörü gösterir; karta bırakılan "
-                                                         "dosyalar bu klasöre taşınır.", below=fw)]))
-        lay.addWidget(self.folder_box)
+        self.folder_box = make_group([
+            setting_row(t("Konum"), t("Bu kart bir klasörü gösterir; karta bırakılan dosyalar bu klasöre taşınır."),
+                        below=fw, icon=""),
+        ])
+        v.addWidget(self.folder_box)
 
-        self.rest_info = label("Bu kart, hiçbir karta yerleştirilmemiş masaüstü öğelerini gösterir. "
-                               "Yalnızca masaüstü simgeleri gizliyken görünür.", "rowDesc", wrap=True)
-        lay.addWidget(self.rest_info)
+        # "Diğer" kartı: açıklama
+        self.rest_info = make_group([
+            setting_row(t("Kartsız öğeler"),
+                        t("Bu kart, hiçbir karta yerleştirilmemiş masaüstü öğelerini gösterir. "
+                          "Yalnızca masaüstü simgeleri gizliyken görünür."), icon=""),
+        ])
+        v.addWidget(self.rest_info)
+        return page
 
-        # --- Kilit
-        self.lock_box = QWidget()
-        kl = QVBoxLayout(self.lock_box)
-        kl.setContentsMargins(0, 4, 0, 0)
-        kl.setSpacing(8)
-        kl.addWidget(group_label("Kilit"))
+    # ---------------------------------------------------------------- Kilit
+    def _lock_tab(self):
+        page, v = self._tab()
         self.locks = {}
-        lock_rows = []
-        for key, title, desc in (
-                ("lock_pos", "Konumu kilitle", "Kart başlığından sürüklenerek taşınamaz."),
-                ("lock_size", "Boyutu kilitle", "Kart köşesinden boyutlandırılamaz."),
-                ("lock_content", "İçeriği kilitle", "Karta öğe eklenemez, çıkarılamaz, yeniden dizilemez; "
-                                                    "öğeler yine açılabilir.")):
-            t = Toggle(False)
-            t.toggled.connect(lambda on, k=key: self.on_lock(k, on))
-            self.locks[key] = t
-            lock_rows.append(setting_row(title, desc, control=t))
-        kl.addWidget(make_group(lock_rows))
-        lay.addWidget(self.lock_box)
+        rows = []
+        for key, title, desc, glyph in (
+                ("lock_pos", t("Konumu kilitle"), t("Kart başlığından sürüklenerek taşınamaz."), ""),
+                ("lock_size", t("Boyutu kilitle"), t("Kart köşesinden boyutlandırılamaz."), ""),
+                ("lock_content", t("İçeriği kilitle"),
+                 t("Karta öğe eklenemez, çıkarılamaz, yeniden dizilemez; öğeler yine açılabilir."), "")):
+            toggle = Toggle(False)
+            toggle.toggled.connect(lambda on, k=key: self.on_lock(k, on))
+            self.locks[key] = toggle
+            rows.append(setting_row(title, desc, control=toggle, icon=glyph))
+        v.addWidget(make_group(rows))
 
-        # --- Kaldırma (satır içi onay)
-        lay.addSpacing(6)
-        self.remove_btn = named(QPushButton("Kartı kaldır"), "danger")
+        # Kaldırma: satır içi onay
+        self.remove_btn = named(QPushButton(t("Kartı kaldır")), "danger")
         self.remove_btn.setCursor(Qt.PointingHandCursor)
         self.remove_btn.clicked.connect(lambda: (self.confirm.show(), self.remove_btn.hide()))
-        lay.addWidget(self.remove_btn)
         self.confirm = QWidget()
-        cl = QVBoxLayout(self.confirm)
-        cl.setContentsMargins(0, 0, 0, 0)
-        cl.setSpacing(6)
-        self.confirm_text = label("", "rowDesc", wrap=True)
-        cl.addWidget(self.confirm_text)
-        cr = QHBoxLayout()
-        b = QPushButton("Vazgeç")
+        cr = QHBoxLayout(self.confirm)
+        cr.setContentsMargins(0, 0, 0, 0)
+        cr.setSpacing(6)
+        b = QPushButton(t("Vazgeç"))
+        b.setCursor(Qt.PointingHandCursor)
         b.clicked.connect(self.reset_confirm)
         cr.addWidget(b)
-        b = named(QPushButton("Kaldır"), "danger")
+        b = named(QPushButton(t("Kaldır")), "danger")
+        b.setCursor(Qt.PointingHandCursor)
         b.clicked.connect(lambda: self.app.remove_fence(self.fence))
         cr.addWidget(b)
-        cl.addLayout(cr)
-        lay.addWidget(self.confirm)
         self.confirm.hide()
-        lay.addStretch()
-        self.setEnabled(False)
+        control = QWidget()
+        cl = QHBoxLayout(control)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.addWidget(self.remove_btn)
+        cl.addWidget(self.confirm)
+        self.confirm_text = label("", "rowDesc", wrap=True)
+        self.remove_row = setting_row(t("Kartı kaldır"), None, control=control, below=self.confirm_text, icon="")
+        self.remove_group = make_group([self.remove_row])
+        v.addWidget(self.remove_group)
+        return page
 
     def reset_confirm(self):
         self.confirm.hide()
         self.remove_btn.show()
 
+    # ---------------------------------------------------------------- bağlama ve yükleme
     def bind(self, fence):
         self.fence = fence
         self.reset_confirm()
@@ -212,8 +240,8 @@ class CardSettings(QWidget):
         self.colors.set_custom(appearance(self.app.config)["custom_colors"])
         self.colors.set_value(d.get("theme"))
         self.theme_value.setText(self.colors.value_name())
-        for key, t in self.locks.items():
-            t.setChecked(bool(d.get(key)))
+        for key, toggle in self.locks.items():
+            toggle.setChecked(bool(d.get(key)))
         ov = d.get("opacity")
         shown = appearance(self.app.config)["opacity"] if ov is None else ov
         self.opacity.setValue(int(shown))
@@ -232,13 +260,14 @@ class CardSettings(QWidget):
         self.rules_box.setVisible(kind == "desktop")
         self.folder_box.setVisible(kind == "folder")
         self.rest_info.setVisible(kind == "rest")
-        self.remove_btn.setVisible(kind != "rest" and not self.confirm.isVisible())
+        self.remove_group.setVisible(kind != "rest")
         self.confirm_text.setText(
-            "Kart kaldırılacak. Klasör ve içindekiler olduğu gibi kalır." if kind == "folder" else
-            "Kart kaldırılacak. İçindeki dosyalar masaüstünde olduğu gibi kalır.")
+            t("Klasör ve içindekiler olduğu gibi kalır.") if kind == "folder" else
+            t("İçindeki dosyalar masaüstünde olduğu gibi kalır."))
         self.folder.setText(str(f.folder) if f.folder else "")
         self._loading = False
 
+    # ---------------------------------------------------------------- değişiklikler
     def _changed(self):
         if not self._loading and self.fence:
             self.app.fence_changed(self.fence, source=self)
@@ -303,7 +332,7 @@ class CardSettings(QWidget):
     def on_change_folder(self):
         if not self.fence:
             return
-        path = QFileDialog.getExistingDirectory(self.window(), "Kartta gösterilecek klasörü seçin",
+        path = QFileDialog.getExistingDirectory(self.window(), t("Kartta gösterilecek klasörü seçin"),
                                                 str(self.fence.folder or ""))
         if path:
             self.fence.set_folder(path)

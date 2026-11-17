@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .i18n import t
 from .config import THEMES, TOGGLE_ON
 
 
@@ -49,16 +50,16 @@ class Toggle(QAbstractButton):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        off, on, t = QColor(self.fg.red(), self.fg.green(), self.fg.blue(), 44), QColor(self.on_color), self._pos
-        c = QColor(int(off.red() + (on.red() - off.red()) * t), int(off.green() + (on.green() - off.green()) * t),
-                   int(off.blue() + (on.blue() - off.blue()) * t), int(off.alpha() + (255 - off.alpha()) * t))
+        off, on, k = QColor(self.fg.red(), self.fg.green(), self.fg.blue(), 44), QColor(self.on_color), self._pos
+        c = QColor(int(off.red() + (on.red() - off.red()) * k), int(off.green() + (on.green() - off.green()) * k),
+                   int(off.blue() + (on.blue() - off.blue()) * k), int(off.alpha() + (255 - off.alpha()) * k))
         p.setPen(Qt.NoPen)
         p.setBrush(c)
         p.drawRoundedRect(QRectF(0, 0, 42, 24), 12, 12)
         p.setBrush(QColor(0, 0, 0, 50))
-        p.drawEllipse(QRectF(3 + t * 18, 3.6, 18, 18))
+        p.drawEllipse(QRectF(3 + k * 18, 3.6, 18, 18))
         p.setBrush(QColor("#ffffff"))
-        p.drawEllipse(QRectF(3 + t * 18, 3, 18, 18))
+        p.drawEllipse(QRectF(3 + k * 18, 3, 18, 18))
 
 
 def named(w, name):
@@ -91,22 +92,37 @@ def make_group(rows):
     return g
 
 
-def setting_row(title, desc=None, control=None, below=None, value=None):
-    """Nectar tarzı ayar satırı: solda başlık/açıklama, sağda kontrol; isteğe bağlı alt kontrol."""
-    w = QWidget()
-    v = QVBoxLayout(w)
-    v.setContentsMargins(14, 10, 14, 10)
-    v.setSpacing(7)
+def icon_label(glyph: str, name="rowIcon"):
+    """Windows simge yazı tipinden tek bir simge gösteren etiket."""
+    lbl = named(QLabel(glyph), name)
+    lbl.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+    return lbl
+
+
+def setting_row(title, desc=None, control=None, below=None, value=None, icon=None):
+    """Tek tip ayar satırı: solda simge, ortada başlık ve açıklama, sağda kontrol; isteğe bağlı olarak
+    başlığın altında tam genişlikte bir kontrol (kaydırıcı, liste...). Açıklama sığmazsa alt satıra geçer."""
+    w = named(QWidget(), "row")
+    w.setAttribute(Qt.WA_StyledBackground)
+    w.row_title, w.row_desc = title, desc or ""  # ayarlarda arama için
+    h = QHBoxLayout(w)
+    h.setContentsMargins(14, 11, 14, 11)
+    h.setSpacing(12)
+    if icon:
+        h.addWidget(icon_label(icon), 0, Qt.AlignTop)
+    v = QVBoxLayout()
+    v.setContentsMargins(0, 0, 0, 0)
+    v.setSpacing(8)
     top = QHBoxLayout()
     top.setSpacing(10)
     info = QVBoxLayout()
     info.setSpacing(1)
-    info.addWidget(label(title))
+    info.addWidget(label(title, wrap=True))
     if desc:
         info.addWidget(label(desc, "rowDesc", wrap=True))
     top.addLayout(info, 1)
     if value is not None:
-        top.addWidget(value)
+        top.addWidget(value, 0, Qt.AlignVCenter)
     if control is not None:
         top.addWidget(control, 0, Qt.AlignVCenter)
     v.addLayout(top)
@@ -115,7 +131,27 @@ def setting_row(title, desc=None, control=None, below=None, value=None):
             v.addWidget(below)
         else:
             v.addLayout(below)
+    h.addLayout(v, 1)
     return w
+
+
+class NavButton(QPushButton):
+    """Kenar çubuğundaki sayfa düğmesi: simge + ad."""
+
+    def __init__(self, glyph: str, text: str):
+        super().__init__()
+        self.setObjectName("navBtn")
+        self.setCheckable(True)
+        self.setCursor(Qt.PointingHandCursor)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(10, 0, 10, 0)
+        lay.setSpacing(10)
+        self.icon_label = named(QLabel(glyph), "navIcon")
+        self.text_label = named(QLabel(text), "navText")
+        for w in (self.icon_label, self.text_label):
+            w.setAttribute(Qt.WA_TransparentForMouseEvents)
+        lay.addWidget(self.icon_label)
+        lay.addWidget(self.text_label, 1)
 
 
 def segmented(options, slot):
@@ -126,7 +162,7 @@ def segmented(options, slot):
     h.setSpacing(2)
     grp = QButtonGroup(box)
     for text, ident in options:
-        b = named(QPushButton(text), "seg")
+        b = named(QPushButton(t(text)), "seg")
         b.setCheckable(True)
         b.setCursor(Qt.PointingHandCursor)
         b.setMinimumWidth(10)
@@ -192,7 +228,7 @@ class SwatchRow(QWidget):
         self._buttons = {}
         self._cell = 0
         if self.with_general:
-            b = named(QPushButton("Genel"), "pill")
+            b = named(QPushButton(t("Genel")), "pill")
             b.setCheckable(True)
             b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(lambda: self._pick(""))
@@ -200,13 +236,13 @@ class SwatchRow(QWidget):
             self._buttons[""] = b
             self._place(b, span=3)
         for key, title, seed, _, _ in THEMES:
-            self._swatch(key, seed, title)
+            self._swatch(key, seed, t(title))
         for c in self._custom[-6:]:
             self._swatch(c, c, c.upper())
         if self.with_add:
-            add = named(QPushButton("+"), "pill")
+            add = named(QPushButton(t("+")), "pill")
             add.setCursor(Qt.PointingHandCursor)
-            add.setToolTip("Yeni renk ekle")
+            add.setToolTip(t("Yeni renk ekle"))
             add.clicked.connect(self._add)
             self._place(add, span=2)
         self.set_value(self._value)
@@ -217,7 +253,7 @@ class SwatchRow(QWidget):
 
     def _add(self):
         start = QColor(self._value) if self._value and self._value.startswith("#") else QColor("#5e8bff")
-        c = QColorDialog.getColor(start, self.window(), "Renk seç")
+        c = QColorDialog.getColor(start, self.window(), t("Renk seç"))
         if c.isValid():
             self.added.emit(c.name())
 
@@ -239,10 +275,10 @@ class SwatchRow(QWidget):
 
     def value_name(self) -> str:
         if not self._value:
-            return "Genel" if self.with_general else ""
+            return t("Genel") if self.with_general else ""
         if self._value.startswith("#"):
-            return "Özel " + self._value.upper()
-        return next((t[1] for t in THEMES if t[0] == self._value), "")
+            return t("Özel ") + self._value.upper()
+        return next((t(th[1]) for th in THEMES if th[0] == self._value), "")
 
 
 class StyleTile(QAbstractButton):

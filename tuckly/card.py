@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .i18n import t
 from .config import ICON_SIZES, SKIP_NAMES, TITLE_H
 from .utils import is_hidden, norm, safe_name, snap, unique_dest
 from .winapi import (
@@ -316,12 +317,12 @@ class TitleBar(QWidget):
         self.edit.editingFinished.connect(lambda: self.finish_rename(True))
         self.edit.installEventFilter(self)
         self.pencil = named(QToolButton(text="\uE70F"), "titlePencil")
-        self.pencil.setToolTip("Kartın adını değiştir")
+        self.pencil.setToolTip(t("Kartın adını değiştir"))
         self.pencil.setCursor(Qt.PointingHandCursor)
         self.pencil.clicked.connect(self.start_rename)
         self.count = named(QLabel(), "titleCount")
         self.lock = named(QLabel("\uE72E"), "titleLock")  # kilit simgesi (Segoe MDL2 Assets)
-        self.lock.setToolTip("Bu kartta kilit açık")
+        self.lock.setToolTip(t("Bu kartta kilit açık"))
         self.lock.hide()
         lay.addWidget(self.text)
         lay.addWidget(self.edit, 1)
@@ -330,12 +331,12 @@ class TitleBar(QWidget):
         lay.addWidget(self.lock)
         lay.addStretch()
         self.gear = QToolButton(text="\uE713")
-        self.gear.setToolTip("Kart ayarları")
+        self.gear.setToolTip(t("Kart ayarları"))
         self.gear.setCheckable(True)
         self.gear.setCursor(Qt.PointingHandCursor)
         self.gear.clicked.connect(lambda on: fence.show_settings(on))
         self.fold = QToolButton(text="\uE70D")
-        self.fold.setToolTip("Daralt / genişlet")
+        self.fold.setToolTip(t("Daralt / genişlet"))
         self.fold.setCursor(Qt.PointingHandCursor)
         self.fold.clicked.connect(fence.toggle_collapsed)
         lay.addWidget(self.gear)
@@ -446,7 +447,7 @@ class SettingsPopup(QWidget):
     Kartlar masaüstünün en altında durduğu için ayarlar kartın içinde değil burada gösterilir.
     Pencere engelleyici değildir; dışına tıklanınca, Esc'e basılınca ya da "Bitti" ile kapanır."""
 
-    W, H, PAD = 372, 580, 0
+    W, H, PAD = 380, 640, 0
 
     def __init__(self, fence):
         super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
@@ -468,11 +469,11 @@ class SettingsPopup(QWidget):
         titles.setSpacing(0)
         self.heading = label("", "popupTitle")
         titles.addWidget(self.heading)
-        titles.addWidget(label("Kart ayarları", "popupSub"))
+        titles.addWidget(label(t("Kart ayarları"), "popupSub"))
         head.addLayout(titles, 1)
         close = named(QToolButton(text="\uE8BB"), "popupClose")
         close.setCursor(Qt.PointingHandCursor)
-        close.setToolTip("Kapat (Esc)")
+        close.setToolTip(t("Kapat (Esc)"))
         close.clicked.connect(self.dismiss)
         head.addWidget(close, 0, Qt.AlignTop)
         v.addLayout(head)
@@ -483,11 +484,11 @@ class SettingsPopup(QWidget):
         foot = QHBoxLayout()
         foot.setContentsMargins(12, 10, 12, 0)
         foot.setSpacing(6)
-        b = QPushButton("Kontrol paneli")
+        b = QPushButton(t("Kontrol paneli"))
         b.setCursor(Qt.PointingHandCursor)
         b.clicked.connect(lambda: fence.app.show_panel(fence))
         foot.addWidget(b)
-        done = named(QPushButton("Bitti"), "primary")
+        done = named(QPushButton(t("Bitti")), "primary")
         done.setCursor(Qt.PointingHandCursor)
         done.clicked.connect(self.dismiss)
         foot.addWidget(done)
@@ -589,7 +590,7 @@ class FenceWindow(QWidget):
         pl = QVBoxLayout(page)
         pl.setContentsMargins(0, 0, 0, 0)
         self.list = FenceList(self)
-        self.empty = named(QLabel("Dosyaları buraya sürükleyin"), "emptyHint")
+        self.empty = named(QLabel(t("Dosyaları buraya sürükleyin")), "emptyHint")
         self.empty.setAlignment(Qt.AlignCenter)
         pl.addWidget(self.list, 1)
         pl.addWidget(self.empty, 1)
@@ -873,7 +874,7 @@ class FenceWindow(QWidget):
         """Bırakılan öğeler: masaüstü kartı yalnızca atar (dışarıdan geleni önce masaüstüne alır),
         klasör kartı ise klasöre taşır/kopyalar."""
         if self.data.get("lock_content"):
-            self.app.notify(f"“{self.data['name']}” kartının içeriği kilitli.")
+            self.app.notify(t('“{0}” kartının içeriği kilitli.').format(self.data['name']))
             return
         errors = []
         target = self.folder if self.kind == "folder" else desktop_dir()
@@ -904,13 +905,13 @@ class FenceWindow(QWidget):
                 errors.append(f"{src.name}: {ex}")
         self.app.refresh_all()
         if errors:
-            self.app.notify("Bazı öğeler eklenemedi: " + "; ".join(errors[:3]), warn=True)
+            self.app.notify(t("Bazı öğeler eklenemedi: ") + "; ".join(errors[:3]), warn=True)
 
     def open_path(self, path):
         try:
             os.startfile(path)
         except OSError as ex:
-            self.app.notify(f"Açılamadı: {ex}", warn=True)
+            self.app.notify(t('Açılamadı: {0}').format(ex), warn=True)
 
     def selected_paths(self):
         return [Path(it.data(Qt.UserRole)) for it in self.list.selectedItems()]
@@ -931,7 +932,7 @@ class FenceWindow(QWidget):
                     self.data["items"] = [str(new) if norm(p) == norm(old) else p for p in items]
                     self.app.save()
             except OSError as ex:
-                self.app.notify(f"Yeniden adlandırılamadı: {ex}", warn=True)
+                self.app.notify(t('Yeniden adlandırılamadı: {0}').format(ex), warn=True)
         self._force_refresh = True  # ad değişmediyse bile yazılan metni geri al
         QTimer.singleShot(0, self.app.refresh_all)
 
@@ -952,7 +953,7 @@ class FenceWindow(QWidget):
             try:
                 shutil.move(str(p), str(unique_dest(desk, p.name)))
             except Exception as ex:  # noqa: BLE001
-                self.app.notify(f"{p.name} taşınamadı: {ex}", warn=True)
+                self.app.notify(t('{0} taşınamadı: {1}').format(p.name, ex), warn=True)
         self.app.refresh_all()
 
     def on_list_menu(self, pos):
@@ -960,36 +961,36 @@ class FenceWindow(QWidget):
         gpos = self.list.viewport().mapToGlobal(pos)
         m = QMenu(self)
         if it is None:
-            m.addAction("Kart ayarları", lambda: self.show_settings(True))
+            m.addAction(t("Kart ayarları"), lambda: self.show_settings(True))
             if self.folder:
-                m.addAction("Klasörü aç", lambda: os.startfile(str(self.folder)))
-            m.addAction("Kontrol paneli", lambda: self.app.show_panel(self))
+                m.addAction(t("Klasörü aç"), lambda: os.startfile(str(self.folder)))
+            m.addAction(t("Kontrol paneli"), lambda: self.app.show_panel(self))
             m.exec(gpos)
             return
         if not it.isSelected():
             self.list.clearSelection()
             it.setSelected(True)
         paths = self.selected_paths()
-        m.addAction("Aç", lambda: [self.open_path(str(p)) for p in paths])
+        m.addAction(t("Aç"), lambda: [self.open_path(str(p)) for p in paths])
         if len(paths) == 1:
-            m.addAction("Dosya konumunu göster",
+            m.addAction(t("Dosya konumunu göster"),
                         lambda: subprocess.Popen(["explorer", "/select,", str(paths[0])]))
             if not self.data.get("lock_content"):
-                m.addAction("Yeniden adlandır", lambda: self.list.editItem(it))
+                m.addAction(t("Yeniden adlandır"), lambda: self.list.editItem(it))
         if self.data.get("lock_content"):  # içerik kilitli: yalnızca açma ve gösterme
             m.exec(gpos)
             return
         m.addSeparator()
         if self.kind == "desktop":
-            m.addAction("Karttan çıkar (masaüstünde kalır)", self.unassign_selected)
+            m.addAction(t("Karttan çıkar (masaüstünde kalır)"), self.unassign_selected)
         elif self.kind == "folder":
-            m.addAction("Masaüstüne taşı", self.move_selected_to_desktop)
+            m.addAction(t("Masaüstüne taşı"), self.move_selected_to_desktop)
         m.addSeparator()
         # Silme iki adımlı: alt menüden ayrıca onaylanır
-        what = paths[0].name if len(paths) == 1 else f"{len(paths)} öğe"
-        sub = m.addMenu("Sil…")
-        sub.addAction(f"Evet, “{what}” Geri Dönüşüm Kutusuna gitsin", self.recycle_selected)
-        sub.addAction("Vazgeç")
+        what = paths[0].name if len(paths) == 1 else t('{0} öğe').format(len(paths))
+        sub = m.addMenu(t("Sil…"))
+        sub.addAction(t('Evet, “{0}” Geri Dönüşüm Kutusuna gitsin').format(what), self.recycle_selected)
+        sub.addAction(t("Vazgeç"))
         m.exec(gpos)
 
     def dragEnterEvent(self, e):

@@ -35,7 +35,7 @@ for n in ["Claude.lnk", "Gemini.lnk"]:
     (old / n).write_text("l")
 (config.FENCE_ROOT / "Belgeler").mkdir()
 config.LEGACY_DATA_DIR.mkdir(parents=True)
-(config.LEGACY_DATA_DIR / "ayarlar.json").write_text(json.dumps({"fences": [
+(config.LEGACY_DATA_DIR / "ayarlar.json").write_text(json.dumps({"language": "tr", "fences": [
     {"name": "Belgeler", "folder": str(config.FENCE_ROOT / "Belgeler"), "rules": ["pdf", "txt", "xlsx"],
      "x": 900, "y": 20, "w": 340, "h": 220, "color": "#10141c"},
     {"name": "Medya", "folder": str(old), "rules": ["png", "jpg"], "x": 900, "y": 260, "w": 340, "h": 220,
@@ -171,6 +171,46 @@ belge = None
 medya, yeni = app.fences[0], app.fences[-3]
 assert medya.data["name"] == "Medya" and yeni.data["name"] == "Oyunlar"
 assert medya.list.count() == 5 and not yeni.isHidden()
+
+# 5h) Ayarları dışa aktarma, sıfırlama ve içe aktarma
+def card(name):
+    return next(f for f in app.fences if f.data["name"] == name)
+
+
+exported = base / "export.json"
+assert app.export_settings(exported) and json.loads(exported.read_text(encoding="utf-8"))["tuckly_export"]
+n_cards = len(app.fences)
+app.reset_settings()
+assert len(app.fences) == 6, [f.data["name"] for f in app.fences]      # beş varsayılan kart + "Diğer"
+assert not any(is_hidden(p) for p in desk.iterdir()), "sıfırlamada tüm simgeler geri gelmeli"
+assert not app.import_settings(base / "yok.json"), "olmayan dosya reddedilmeli"
+assert app.import_settings(exported) and len(app.fences) == n_cards
+medya, yeni = card("Medya"), card("Oyunlar")
+assert medya.list.count() == 5 and is_hidden(desk / "Rapor.pdf"), "içe aktarılan kartlar ve gizleme geri gelmeli"
+
+# 5i) Dil değiştirme arayüzü yeniden kurar; Türkçeye dönünce metinler kaynak haliyle kalır
+from tuckly.i18n import LANGUAGES, current_language, t  # noqa: E402
+
+for code, _ in LANGUAGES:
+    app.set_language(code)
+    assert current_language() == code and len(app.panel.nav) == 6
+app.set_language("tr")
+assert t("Kartlar") == "Kartlar" and app.panel.nav[0].text_label.text() == "Kartlar"
+medya, yeni = card("Medya"), card("Oyunlar")
+
+# 5j) Ayarlarda arama ve rehber turu
+app.show_panel()
+app.panel.search.setText("opak")
+assert app.panel.pages.currentIndex() == 6 and app.panel.results.count() >= 1
+app.panel.on_result(app.panel.results.item(0))
+assert app.panel.pages.currentIndex() == 1 and app.panel.search.text() == ""
+app.start_tour()
+steps = 0
+while app.tour.active() and steps < 20:
+    assert app.tour.bubble.isVisible() and app.tour.bubble.title.text()
+    app.tour.advance()
+    steps += 1
+assert steps == 7 and not app.tour.active(), steps
 
 # 6) Kart ayarları kartın yanında ayrı bir pencerede açılır; aynı anda yalnızca biri açık kalır
 app.show_panel(medya)

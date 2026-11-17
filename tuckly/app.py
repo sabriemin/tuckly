@@ -12,6 +12,8 @@ from PySide6.QtGui import QColor, QCursor, QGuiApplication, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileIconProvider, QMenu, QSystemTrayIcon
 
+from . import __version__
+from .i18n import set_language, t
 from .config import (
     resource,
     APP_ID,
@@ -51,6 +53,7 @@ from .widgets import StyleTile, Toggle
 from .card import FenceWindow
 from .notifications import AVAILABLE as BADGES_AVAILABLE, NotificationWatcher
 from .panel import ControlPanel
+from .tour import Tour
 
 
 class FencesApp:
@@ -58,10 +61,12 @@ class FencesApp:
         self.qapp = qapp
         self.quitting = False
         self.badges = []  # bildirim sayıları: [(uygulama adı, kimliği, sayı)]
+        self.tour = Tour(self)
         # Dosya simgeleri önbelleği: Windows'tan simge istemek yavaş; her yenilemede yeniden istenmesin
         self._icon_provider = QFileIconProvider()
         self._icons = {}
         self.config = self.load()
+        set_language(self.config.get("language"))  # None: Windows'un dili
         self.locked = self.config.get("locked", False)
         self.fences: list[FenceWindow] = []
 
@@ -105,20 +110,106 @@ class FencesApp:
         self.panel = ControlPanel(self)
 
         self.tray = QSystemTrayIcon(make_app_icon())
-        self.tray.setToolTip(APP_NAME + " — tıklayın: kontrol paneli")
-        m = QMenu()
-        m.setStyleSheet(base_style(make_look(appearance(self.config))))
-        m.addAction("Kontrol paneli", self.show_panel)
-        m.addAction("Görünüm", lambda: self.show_panel(page=1))
-        m.addAction("Masaüstünü düzenle", lambda: self.show_panel(page=2))
-        m.addSeparator()
-        m.addAction("Çıkış", self.quit)
-        self.tray_menu = m
-        self.tray.setContextMenu(m)
+        self.build_tray_menu()
         self.tray.activated.connect(
             lambda r: self.show_panel() if r in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick) else None)
         self.tray.show()
         qapp.aboutToQuit.connect(self.on_quit)
+
+    def build_tray_menu(self):
+        self.tray.setToolTip(APP_NAME + t(" — tıklayın: kontrol paneli"))
+        m = QMenu()
+        m.setStyleSheet(base_style(make_look(appearance(self.config))))
+        m.addAction(t("Kontrol paneli"), self.show_panel)
+        m.addAction(t("Görünüm"), lambda: self.show_panel(page=1))
+        m.addAction(t("Masaüstünü düzenle"), lambda: self.show_panel(page=2))
+        m.addSeparator()
+        m.addAction(t("Çıkış"), self.quit)
+        self.tray_menu = m
+        self.tray.setContextMenu(m)
+
+    # ---- Dil, ayar dosyası ve sıfırlama
+    def rebuild_ui(self, page=0):
+        """Dil ya da ayarların tamamı değiştiğinde kartları, paneli ve tepsi menüsünü yeniden kurar."""
+        self.tour.finish()
+        old = self.panel
+        visible, geo = old.isVisible(), old.geometry()
+        self.close_popups()
+        self.rebuild_cards()
+        self._sync_widget_colors()
+        self.panel = ControlPanel(self)
+        self.panel.setGeometry(geo)
+        old.hide()
+        old.deleteLater()
+        self.build_tray_menu()
+        if self.config.get("context_menu", True) and not _override:  # menü adları dile göre yazılır
+            register_context_menu(True, self.launch_command(), str(resource("tuckly.ico")))
+        if visible:
+            self.show_panel(page=page)
+
+    def start_tour(self):
+        """Rehber turunu başlatır (Rehber ve Hakkında sayfalarından, ilk kurulumda da kendiliğinden)."""
+        self.tour.start()
+
+    def set_language(self, code):
+        self.config["language"] = code
+        set_language(code)
+        self.save()
+        self.rebuild_ui(page=3)
+
+    def export_settings(self, path) -> bool:
+        """Kartları ve tüm ayarları bir JSON dosyasına yazar."""
+        data = dict(self.config)
+        data["tuckly_export"] = __version__
+        try:
+            Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            return True
+        except OSError:
+            return False
+
+    def import_settings(self, path) -> bool:
+        """Dışa aktarılmış bir ayar dosyasını yükler; mevcut ayarların yerini alır."""
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            self.notify(t("Ayar dosyası okunamadı."), warn=True)
+            return False
+        fences = data.get("fences") if isinstance(data, dict) else None
+        if not isinstance(fences, list) or not all(isinstance(d, dict) and d.get("name") for d in fences):
+            self.notify(t("Bu dosya bir Tuckly ayar dosyası değil."), warn=True)
+            return False
+        if self.hide_assigned:
+            self.sync_hidden(False)  # eski kartlardaki simgeler masaüstüne dönsün
+        data.pop("tuckly_export", None)
+        data["system_marked"] = []
+        self.config = data
+        self._apply_new_config()
+        self.notify(t("Ayarlar içe aktarıldı."))
+        return True
+
+    def reset_settings(self):
+        """Tüm kartları ve ayarları ilk kurulumdaki haline döndürür. Dosyalara dokunmaz."""
+        if self.hide_assigned:
+            self.sync_hidden(False)
+        self.config = {"fences": [], "language": self.config.get("language")}
+        self.create_defaults()
+        self._apply_new_config()
+        self.notify(t("Tüm ayarlar varsayılana döndürüldü. Dosyalara dokunulmadı."))
+
+    def _apply_new_config(self):
+        self.locked = self.config.get("locked", False)
+        set_language(self.config.get("language"))
+        self.migrate()
+        self.config["fences"].sort(key=lambda d: d.get("kind") == "rest")
+        self.save()
+        self.rebuild_ui(page=3)
+        set_desktop_icons_visible(not self.config.get("hide_icons"))
+        if self.hide_assigned:
+            self.sync_hidden(True)
+        if self.config.get("badges") and BADGES_AVAILABLE:
+            self.watcher.start()
+        else:
+            self.watcher.stop()
 
     # ---- Kart pencereleri
     def build_cards(self):
@@ -177,10 +268,11 @@ class FencesApp:
         for i, (name, cats) in enumerate(DEFAULT_FENCES):
             col, row = divmod(i, per_col)
             d = self._fence_data(
-                name, [], snap(geo.right() - (col + 1) * (w + gap)), snap(geo.top() + gap + row * (h + gap)))
+                t(name), [], snap(geo.right() - (col + 1) * (w + gap)), snap(geo.top() + gap + row * (h + gap)))
             d["categories"] = list(cats)
             fences.append(d)
         self.config["fences"] = fences
+        self.config["tour_pending"] = True  # ilk kurulum: rehber turu bir kez kendiliğinden açılır
         self.save()
 
     def migrate(self):
@@ -245,7 +337,7 @@ class FencesApp:
             pass
         if not any(d.get("kind") == "rest" for d in self.config["fences"]):
             geo = QGuiApplication.primaryScreen().availableGeometry()
-            rest = self._fence_data("Diğer", [], snap(geo.left() + 20), snap(geo.top() + 20))
+            rest = self._fence_data(t("Diğer"), [], snap(geo.left() + 20), snap(geo.top() + 20))
             rest["kind"] = "rest"
             self.config["fences"].append(rest)
             changed = True
@@ -367,7 +459,7 @@ class FencesApp:
     # ---- Kart yönetimi
     def new_fence(self, name=None, folder=None, pos=None):
         if name is None:
-            base, i = "Yeni Kart", 2
+            base, i = t("Yeni Kart"), 2
             names = {f.data["name"] for f in self.fences}
             name = base
             while name in names:
@@ -403,7 +495,7 @@ class FencesApp:
         self.save()
         self.refresh_all()
         self.panel.reload_cards()
-        self.notify(f"“{fence.data['name']}” kartı kaldırıldı. Dosyalara dokunulmadı.")
+        self.notify(t('“{0}” kartı kaldırıldı. Dosyalara dokunulmadı.').format(fence.data['name']))
 
     # ---- Masaüstünü düzenleme
     def plan_sort(self, min_age=0.0):
@@ -458,7 +550,7 @@ class FencesApp:
         if plan:
             done, _ = self.execute_sort(plan)
             if done:
-                self.notify(f"{len(done)} yeni dosya kartlara yerleştirildi.")
+                self.notify(t('{0} yeni dosya kartlara yerleştirildi.').format(len(done)))
         if any(p.suffix.lower() in PARTIAL_EXT for p in desktop_entries()):
             self._auto_timer.start()
 
@@ -466,14 +558,14 @@ class FencesApp:
         try:
             data = json.loads(UNDO_FILE.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            self.notify("Geri alınacak bir düzenleme yok.")
+            self.notify(t("Geri alınacak bir düzenleme yok."))
             return
         paths = data.get("assigned", [])
         for p in paths:
             self.assign(p, None)
         UNDO_FILE.unlink(missing_ok=True)
         self.refresh_all()
-        self.notify(f"{len(paths)} dosya kartlardan çıkarıldı (masaüstünde duruyorlar).")
+        self.notify(t('{0} dosya kartlardan çıkarıldı (masaüstünde duruyorlar).').format(len(paths)))
         self.panel.refresh_plan()
 
     # ---- Seçenekler
@@ -534,8 +626,8 @@ class FencesApp:
         if self.config.get("badges"):
             self.config["badges"] = False
             self.save()
-            self.notify("Bildirim sayıları için Windows izni verilmedi. Ayarlar > Gizlilik > Bildirimler "
-                        "bölümünden izin verip yeniden açabilirsiniz.", warn=True)
+            self.notify(t("Bildirim sayıları için Windows izni verilmedi. Ayarlar > Gizlilik > Bildirimler "
+                        "bölümünden izin verip yeniden açabilirsiniz."), warn=True)
 
     # ---- Görünüm
     def set_appearance(self, key, value):
@@ -619,14 +711,14 @@ class FencesApp:
         paths, self._incoming = [Path(p) for p in dict.fromkeys(self._incoming)], []
         ok = [p for p in paths if p.exists() and on_desktop(p)]
         if not ok:
-            self.notify("Yalnızca masaüstündeki öğeler karta eklenebilir.")
+            self.notify(t("Yalnızca masaüstündeki öğeler karta eklenebilir."))
             return
         m = QMenu()
         m.setStyleSheet(base_style(make_look(appearance(self.config))))
-        head = m.addAction(ok[0].name if len(ok) == 1 else f"{len(ok)} öğe")
+        head = m.addAction(ok[0].name if len(ok) == 1 else t('{0} öğe').format(len(ok)))
         head.setEnabled(False)
         m.addSeparator()
-        m.addAction("+  Yeni kart", lambda: self.new_card_at_cursor(ok))
+        m.addAction(t("+  Yeni kart"), lambda: self.new_card_at_cursor(ok))
         cards = [f for f in self.fences if f.kind == "desktop" and not f.data.get("lock_content")]
         if cards:
             m.addSeparator()
@@ -669,7 +761,7 @@ class FencesApp:
                     except FileNotFoundError:
                         pass
         except OSError as ex:
-            self.notify(f"Başlangıç ayarı değiştirilemedi: {ex}", warn=True)
+            self.notify(t('Başlangıç ayarı değiştirilemedi: {0}').format(ex), warn=True)
 
     def quit(self):
         self.quitting = True
@@ -687,16 +779,16 @@ class FencesApp:
         self.tray.hide()
 
 
-def _log_exception(t, v, tb):
+def _log_exception(kind, v, tb):
     import traceback
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         with open(LOG_FILE, "a", encoding="utf-8") as fh:
-            fh.write(time.strftime("%Y-%m-%d %H:%M:%S ") + "".join(traceback.format_exception(t, v, tb)) + "\n")
+            fh.write(time.strftime("%Y-%m-%d %H:%M:%S ") + "".join(traceback.format_exception(kind, v, tb)) + "\n")
     except OSError:
         pass
     if sys.stderr:
-        sys.__excepthook__(t, v, tb)
+        sys.__excepthook__(kind, v, tb)
 
 
 def main():
@@ -706,6 +798,7 @@ def main():
     qapp = QApplication(sys.argv)
     qapp.setQuitOnLastWindowClosed(False)
     qapp.setApplicationName(APP_NAME)
+    qapp.setWindowIcon(make_app_icon())  # kartlar ve açılır pencereler dahil tüm pencereler için
     qapp.setStyle("Fusion")
 
     # Komut satırı isteği: --cik (düzgünce kapat), --yeni-kart, --ekle <yol>; yoksa paneli göster
@@ -744,8 +837,11 @@ def main():
         QTimer.singleShot(700, lambda: app.handle_message(msg))
     elif "--arkaplan" not in sys.argv:
         QTimer.singleShot(300, app.show_panel)
+        if app.config.pop("tour_pending", False):
+            app.save()
+            QTimer.singleShot(1200, app.start_tour)
     if "--bildirim-testi" in sys.argv:  # bildirimin hangi adla göründüğünü denemek için
-        QTimer.singleShot(1500, lambda: app.notify("Bildirim denemesi."))
+        QTimer.singleShot(1500, lambda: app.notify(t("Bildirim denemesi.")))
     code = qapp.exec()
     server.close()
     return code

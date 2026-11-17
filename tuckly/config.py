@@ -4,6 +4,8 @@ import os
 import sys
 from pathlib import Path
 
+from .i18n import mark
+
 
 APP_NAME = "Tuckly"
 
@@ -14,6 +16,11 @@ APP_ID = "Tuckly"
 AUMID = "Tuckly"  # kaynak koddan çalışırken bildirim başlığında görünen kimlik
 
 
+# Projenin GitHub deposu. Boşken "yıldız ver", "sorun bildir" ve "sürümler" düğmeleri gizlenir.
+# Depo yayınlanınca buraya yazın, örn. "https://github.com/kullanici/tuckly"
+REPO_URL = ""
+# Windows simge yazı tipleri (Windows 11: Fluent, Windows 10: MDL2); simgeler özel kullanım kod noktalarıdır
+ICON_FONT = '"Segoe Fluent Icons", "Segoe MDL2 Assets"'
 LEGACY_ID = "MasaustuKutulari"  # uygulamanın eski adı; ayarlar buradan devralınır
 
 
@@ -60,7 +67,7 @@ PARTIAL_EXT = {".crdownload", ".part", ".tmp", ".partial", ".download", ".opdown
 SKIP_NAMES = {"desktop.ini", "thumbs.db"}
 
 
-ICON_SIZES = (("Küçük", 28), ("Orta", 36), ("Büyük", 48))
+ICON_SIZES = ((mark("Küçük"), 28), (mark("Orta"), 36), (mark("Büyük"), 48))
 
 
 TOGGLE_ON = "#34c759"
@@ -70,16 +77,16 @@ DEFAULT_FONT = "Segoe UI Variable Text"
 
 
 THEMES = [
-    ("graphite", "Grafit", "#8e8e93", 0.04, "#0a84ff"),
-    ("midnight", "Gece", "#5e8bff", 0.40, "#7aa2ff"),
-    ("ocean", "Okyanus", "#2ec4d6", 0.45, "#35d0e0"),
-    ("forest", "Orman", "#34c77b", 0.28, "#4ade80"),
-    ("plum", "Mor", "#c77dff", 0.30, "#c58bff"),
-    ("rose", "Gül", "#ff5e8a", 0.30, "#ff6b95"),
-    ("ember", "Kor", "#ff7a45", 0.32, "#ff8a5c"),
-    ("crimson", "Kızıl", "#ff453a", 0.34, "#ff6b61"),
-    ("gold", "Altın", "#f5b942", 0.30, "#f7c95f"),
-    ("sky", "Gökyüzü", "#38bdf8", 0.42, "#5cc8fa"),
+    ("graphite", mark("Grafit"), "#8e8e93", 0.04, "#0a84ff"),
+    ("midnight", mark("Gece"), "#5e8bff", 0.40, "#7aa2ff"),
+    ("ocean", mark("Okyanus"), "#2ec4d6", 0.45, "#35d0e0"),
+    ("forest", mark("Orman"), "#34c77b", 0.28, "#4ade80"),
+    ("plum", mark("Mor"), "#c77dff", 0.30, "#c58bff"),
+    ("rose", mark("Gül"), "#ff5e8a", 0.30, "#ff6b95"),
+    ("ember", mark("Kor"), "#ff7a45", 0.32, "#ff8a5c"),
+    ("crimson", mark("Kızıl"), "#ff453a", 0.34, "#ff6b61"),
+    ("gold", mark("Altın"), "#f5b942", 0.30, "#f7c95f"),
+    ("sky", mark("Gökyüzü"), "#38bdf8", 0.42, "#5cc8fa"),
 ]
 
 
@@ -87,28 +94,28 @@ THEME_KEYS = [t[0] for t in THEMES]
 
 # Dosya kategorileri: (anahtar, görünen ad, uzantılar). "folders" klasörleri kapsar.
 CATEGORIES = [
-    ("shortcuts", "Kısayollar", ("lnk", "url")),
-    ("folders", "Klasörler", ()),
-    ("documents", "Belgeler", ("pdf", "doc", "docx", "txt", "rtf", "odt", "md")),
-    ("sheets", "Tablolar", ("xls", "xlsx", "csv", "ods")),
-    ("slides", "Sunumlar", ("ppt", "pptx", "odp")),
-    ("images", "Resimler", ("jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico", "heic", "tif", "tiff", "psd")),
-    ("video", "Videolar", ("mp4", "mkv", "avi", "mov", "webm", "wmv")),
-    ("audio", "Ses ve müzik", ("mp3", "wav", "flac", "ogg", "m4a")),
-    ("archives", "Arşivler", ("zip", "rar", "7z", "tar", "gz", "iso")),
-    ("installers", "Kurulum dosyaları", ("exe", "msi")),
-    ("code", "Kod", ("py", "js", "ts", "html", "css", "json", "cpp", "cs", "java")),
+    ("shortcuts", mark("Kısayollar"), ("lnk", "url")),
+    ("folders", mark("Klasörler"), ()),
+    ("documents", mark("Belgeler"), ("pdf", "doc", "docx", "txt", "rtf", "odt", "md")),
+    ("sheets", mark("Tablolar"), ("xls", "xlsx", "csv", "ods")),
+    ("slides", mark("Sunumlar"), ("ppt", "pptx", "odp")),
+    ("images", mark("Resimler"), ("jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico", "heic", "tif", "tiff", "psd")),
+    ("video", mark("Videolar"), ("mp4", "mkv", "avi", "mov", "webm", "wmv")),
+    ("audio", mark("Ses ve müzik"), ("mp3", "wav", "flac", "ogg", "m4a")),
+    ("archives", mark("Arşivler"), ("zip", "rar", "7z", "tar", "gz", "iso")),
+    ("installers", mark("Kurulum dosyaları"), ("exe", "msi")),
+    ("code", mark("Kod"), ("py", "js", "ts", "html", "css", "json", "cpp", "cs", "java")),
 ]
 CATEGORY_EXTS = {key: exts for key, _, exts in CATEGORIES}
 
 # Karttaki öğelerin sıralanma biçimleri: (anahtar, görünen ad)
-SORT_MODES = (("name", "Ad"), ("type", "Tür"), ("date", "Tarih"), ("manual", "Serbest"))
+SORT_MODES = (("name", mark("Ad")), ("type", mark("Tür")), ("date", mark("Tarih")), ("manual", mark("Serbest")))
 
 # İlk çalıştırmada oluşturulan kartlar: (ad, kategoriler)
 DEFAULT_FENCES = [
-    ("Kısayollar", ["shortcuts"]),
-    ("Belgeler", ["documents", "sheets", "slides"]),
-    ("Resimler", ["images"]),
-    ("Medya", ["video", "audio"]),
-    ("Arşiv ve Kurulum", ["archives", "installers"]),
+    (mark("Kısayollar"), ["shortcuts"]),
+    (mark("Belgeler"), ["documents", "sheets", "slides"]),
+    (mark("Resimler"), ["images"]),
+    (mark("Medya"), ["video", "audio"]),
+    (mark("Arşiv ve Kurulum"), ["archives", "installers"]),
 ]

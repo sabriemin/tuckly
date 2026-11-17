@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtGui import QColor
 
 from .config import AUMID, SKIP_NAMES, _override
+from .i18n import t
 from .utils import is_hidden, norm
 
 
@@ -293,9 +294,9 @@ def register_context_menu(enable: bool, command: str = "", icon: str = "") -> bo
                         pass
             return True
         entries = (
-            (_MENU_BACKGROUND, "Yeni Tuckly kartı", "--yeni-kart", {}),
+            (_MENU_BACKGROUND, t("Yeni Tuckly kartı"), "--yeni-kart", {}),
             # MultiSelectModel=Player: çok sayıda öğe seçiliyken de komut her öğe için çalışsın
-            (_MENU_ITEMS, "Tuckly kartına ekle", '--ekle "%1"', {"MultiSelectModel": "Player"}),
+            (_MENU_ITEMS, t("Tuckly kartına ekle"), '--ekle "%1"', {"MultiSelectModel": "Player"}),
         )
         for key, title, args, extra in entries:
             with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key) as k:

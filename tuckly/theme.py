@@ -5,12 +5,13 @@ from dataclasses import dataclass
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 
-from .config import DEFAULT_FONT, THEMES, resource
+from .i18n import mark
+from .config import DEFAULT_FONT, ICON_FONT, THEMES, resource
 from .winapi import windows_accent
 
 # Kart stilleri: (anahtar, görünen ad)
-STYLES = (("flat", "Düz"), ("frosted", "Buzlu Cam"), ("liquid", "Sıvı Cam"), ("material", "Material You"))
-ACCENT_MODES = (("theme", "Tema"), ("mono", "Tek renk"), ("system", "Windows"), ("custom", "Özel"))
+STYLES = (("flat", mark("Düz")), ("frosted", mark("Buzlu Cam")), ("liquid", mark("Sıvı Cam")), ("material", mark("Material You")))
+ACCENT_MODES = (("theme", mark("Tema")), ("mono", mark("Tek renk")), ("system", mark("Windows")), ("custom", mark("Özel")))
 
 DEFAULT_APPEARANCE = {
     "style": "frosted",        # STYLES anahtarlarından biri
@@ -162,6 +163,10 @@ QLabel {{ color: rgba({fg},235); font-size: 9.5pt; }}
 #rowValue {{ color: rgba({fg},{hint + 20}); font-size: 9pt; }}
 #group {{ background: rgba({fg},10); border: 1px solid rgba({fg},16); border-radius: 12px; }}
 #divider {{ background: rgba({fg},16); border: none; }}
+#row {{ background: transparent; border-radius: 10px; }}
+#row[flash="true"] {{ background: {rgba(look.accent, 0.28)}; }}
+#rowIcon {{ font-family: {ICON_FONT}; font-size: 12pt; color: rgba({fg},{hint + 40});
+           min-width: 22px; max-width: 22px; padding-top: 2px; }}
 QLineEdit, QComboBox {{ background: rgba({fg},16); color: rgb({fg}); border: 1px solid rgba({fg},22);
              border-radius: 8px; padding: 6px 9px; font-size: 9.5pt;
              selection-background-color: {acc}; selection-color: {on}; }}
@@ -267,6 +272,7 @@ def popup_style(look: Look) -> str:
 #popup {{ background: {bg.name()}; border: 1px solid rgba({fg},56); border-radius: 14px; }}
 #popupTitle {{ color: rgb({fg}); font-size: 11pt; font-weight: 600; }}
 #popupSub {{ color: rgba({fg},140); font-size: 8.5pt; }}
+#popupText {{ color: rgba({fg},225); font-size: 9.5pt; }}
 QToolButton#popupClose {{ font: 8pt "Segoe MDL2 Assets"; color: rgba({fg},210); background: transparent;
                          border: none; border-radius: 7px; min-width: 28px; min-height: 28px; }}
 QToolButton#popupClose:hover {{ background: rgba({fg},40); color: rgb({fg}); }}
@@ -291,6 +297,14 @@ def panel_style(look: Look) -> str:
                  font-size: 10pt; font-weight: 500; }}
 #sidebar::item:hover:!selected {{ background: rgba({fg},14); color: rgb({fg}); }}
 #sidebar::item:selected {{ background: rgba({fg},26); color: rgb({fg}); }}
+#navBtn {{ background: transparent; border: none; border-radius: 8px; padding: 0; min-height: 36px; }}
+#navBtn:hover {{ background: rgba({fg},14); }}
+#navBtn:checked {{ background: rgba({fg},28); }}
+#navIcon {{ font-family: {ICON_FONT}; font-size: 11.5pt; color: rgba({fg},200); min-width: 20px; max-width: 20px; }}
+#navText {{ color: rgba({fg},230); font-size: 10pt; font-weight: 500; }}
+#search {{ padding: 6px 10px; border-radius: 8px; }}
+#aboutName {{ color: rgb({fg}); font-size: 19pt; font-weight: 600; }}
+#aboutSub {{ color: rgba({fg},150); font-size: 9.5pt; }}
 #brand {{ color: rgb({fg}); font-size: 11pt; font-weight: 700; }}
 #brandSub {{ color: rgba({fg},130); font-size: 8.5pt; }}
 #pageTitle {{ color: rgb({fg}); font-size: 17pt; font-weight: 600; }}
