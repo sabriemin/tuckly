@@ -269,7 +269,7 @@ class ControlPanel(QWidget):
         left.addWidget(self._button(t("Not kartı ekle"), self.on_add_note))
         lw = QWidget()
         lw.setLayout(left)
-        lw.setFixedWidth(220)
+        lw.setFixedWidth(244)
         h.addWidget(lw)
         self.editor = CardSettings(self.app, in_card=False)
         h.addWidget(scroll_wrap(self.editor), 1)
