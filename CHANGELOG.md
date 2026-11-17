@@ -7,6 +7,9 @@
 - Search inside crowded cards from the magnifier in the card title
 - Optional emoji in front of a card title
 - Moving cards snap to screen edges and to each other (hold Alt to move freely)
+- Cards can open on hover: they stay as a title and expand under the pointer
+- Note cards that hold free text instead of files
+- Accent color can follow the desktop wallpaper
 
 ## 0.1.3
 
