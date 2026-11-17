@@ -299,5 +299,18 @@
  "Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir.": "Click inside the card and type; what you write is saved automatically.",
  "Kartla birlikte içindeki not da silinir.": "The note inside is deleted together with the card.",
  "Duvar kâğıdı": "Wallpaper",
- "Not kartı ekle": "Add note card"
+ "Not kartı ekle": "Add note card",
+ "Düzen {0}": "Layout {0}",
+ "“{0}” düzeni kaydedildi.": "Layout “{0}” saved.",
+ "“{0}” düzeni yüklendi. Dosyalara dokunulmadı.": "Layout “{0}” loaded. No files were touched.",
+ "Monitör düzenini hatırla": "Remember monitor setup",
+ "Monitör takılıp çıkarıldığında kartlar, o monitör düzeninde en son bıraktığınız yerlere döner.": "When a monitor is connected or removed, cards return to where you last left them in that monitor setup.",
+ "Düzen adı, örn. İş": "Layout name, e.g. Work",
+ "Kaydet": "Save",
+ "Düzenler": "Layouts",
+ "Geçerli düzeni kaydet": "Save current layout",
+ "Kartların yeri, boyutu ve içeriği bir adla saklanır; sonra tek tıkla geri yüklenir.": "The position, size and content of the cards are stored under a name and restored later with one click.",
+ "Yükle": "Load",
+ "Sil": "Delete",
+ "{0} kart · {1}": "{0} cards · {1}"
 }

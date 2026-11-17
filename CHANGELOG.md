@@ -10,6 +10,8 @@
 - Cards can open on hover: they stay as a title and expand under the pointer
 - Note cards that hold free text instead of files
 - Accent color can follow the desktop wallpaper
+- Named layouts: save the position, size and content of all cards and restore them later
+- Card positions are remembered per monitor setup and restored when a monitor is connected or removed
 
 ## 0.1.3
 

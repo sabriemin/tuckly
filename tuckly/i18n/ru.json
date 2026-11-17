@@ -299,5 +299,18 @@
  "Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir.": "Щёлкните внутри карточки и пишите: текст сохраняется автоматически.",
  "Kartla birlikte içindeki not da silinir.": "Заметка удаляется вместе с карточкой.",
  "Duvar kâğıdı": "Обои",
- "Not kartı ekle": "Добавить заметку"
+ "Not kartı ekle": "Добавить заметку",
+ "Düzen {0}": "Раскладка {0}",
+ "“{0}” düzeni kaydedildi.": "Раскладка «{0}» сохранена.",
+ "“{0}” düzeni yüklendi. Dosyalara dokunulmadı.": "Раскладка «{0}» загружена. Файлы не затронуты.",
+ "Monitör düzenini hatırla": "Запоминать конфигурацию мониторов",
+ "Monitör takılıp çıkarıldığında kartlar, o monitör düzeninde en son bıraktığınız yerlere döner.": "При подключении или отключении монитора карточки возвращаются туда, где вы оставили их в этой конфигурации.",
+ "Düzen adı, örn. İş": "Название, напр. Работа",
+ "Kaydet": "Сохранить",
+ "Düzenler": "Раскладки",
+ "Geçerli düzeni kaydet": "Сохранить текущую раскладку",
+ "Kartların yeri, boyutu ve içeriği bir adla saklanır; sonra tek tıkla geri yüklenir.": "Положение, размер и содержимое карточек сохраняются под именем и восстанавливаются одним щелчком.",
+ "Yükle": "Загрузить",
+ "Sil": "Удалить",
+ "{0} kart · {1}": "Карточек: {0} · {1}"
 }

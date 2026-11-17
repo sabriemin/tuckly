@@ -5,6 +5,7 @@ alanından oluşur; ayarlar `setting_row` ile tek tip satırlar halinde gruplan�
 """
 
 import os
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QSize, QTimer, QUrl, Qt
@@ -581,6 +582,9 @@ class ControlPanel(QWidget):
             row(t("Kartları kenarlara yapıştır"),
                 t("Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır."),
                 cfg.get("magnet", True), app.set_magnet, "\uE8A9"),
+            row(t("Monitör düzenini hatırla"),
+                t("Monitör takılıp çıkarıldığında kartlar, o monitör düzeninde en son bıraktığınız yerlere döner."),
+                cfg.get("screen_memory", True), app.set_screen_memory, "\uE7F4"),
             row(t("Kartları kilitle"), t("Kartlar yanlışlıkla taşınamaz ve boyutlandırılamaz."),
                 app.locked, app.set_locked, ""),
             row(t("Windows ile başlat"), t("Bilgisayar açıldığında kartlar otomatik gelir."),
@@ -626,6 +630,29 @@ class ControlPanel(QWidget):
         reset.clicked.connect(lambda: (reset.hide(), yes.show(), no.show()))
         no.clicked.connect(lambda: (yes.hide(), no.hide(), reset.show()))
         yes.clicked.connect(lambda: QTimer.singleShot(0, app.reset_settings))
+
+        # Düzen yedekleri: ad + kaydet; altında kayıtlı düzenler
+        save_box = QWidget()
+        sb = QHBoxLayout(save_box)
+        sb.setContentsMargins(0, 0, 0, 0)
+        sb.setSpacing(6)
+        self.layout_name = QLineEdit()
+        self.layout_name.setPlaceholderText(t("Düzen adı, örn. İş"))
+        self.layout_name.setMaxLength(40)
+        self.layout_name.returnPressed.connect(self.on_save_layout)
+        sb.addWidget(self.layout_name, 1)
+        sb.addWidget(self._button(t("Kaydet"), self.on_save_layout, "primary"))
+        v.addSpacing(10)
+        v.addWidget(group_label(t("Düzenler")))
+        self._layout_save_row = self._row(
+            P, t("Geçerli düzeni kaydet"),
+            t("Kartların yeri, boyutu ve içeriği bir adla saklanır; sonra tek tıkla geri yüklenir."),
+            below=save_box, icon="\uE74E")
+        self.layout_holder = QVBoxLayout()
+        self.layout_holder.setContentsMargins(0, 0, 0, 0)
+        v.addLayout(self.layout_holder)
+        self.reload_layouts()
+
         self._section(v, t("Ayarlar"), [
             self._row(P, t("Ayarları dışa aktar"), t("Kartlarınızı ve tüm ayarları bir dosyaya kaydeder."),
                       control=self._button(t("Dışa aktar…"), self.on_export), icon=""),
@@ -638,6 +665,36 @@ class ControlPanel(QWidget):
         ])
         v.addStretch()
         return page
+
+    def reload_layouts(self):
+        """Kayıtlı düzenler listesini baştan kurar."""
+        self._layout_save_row.setParent(None)  # eski grupla birlikte silinmesin
+        while self.layout_holder.count():
+            w = self.layout_holder.takeAt(0).widget()
+            if w:
+                w.setParent(None)
+                w.deleteLater()
+        rows = [self._layout_save_row]
+        for i, entry in enumerate(self.app.config.get("layouts", [])):
+            box = QWidget()
+            hb = QHBoxLayout(box)
+            hb.setContentsMargins(0, 0, 0, 0)
+            hb.setSpacing(6)
+            hb.addWidget(self._button(t("Yükle"), lambda _=False, n=i: QTimer.singleShot(0, lambda: self.app.load_layout(n))))
+            hb.addWidget(self._button(t("Sil"), lambda _=False, n=i: self.on_delete_layout(n), "danger"))
+            when = time.strftime("%d.%m.%Y %H:%M", time.localtime(entry.get("saved", 0)))
+            count = sum(1 for d in entry.get("fences", []) if d.get("kind") != "rest")
+            rows.append(setting_row(entry["name"], t("{0} kart · {1}").format(count, when), control=box, icon="\uE8A9"))
+        self.layout_holder.addWidget(make_group(rows))
+
+    def on_save_layout(self):
+        self.app.save_layout(self.layout_name.text())
+        self.layout_name.clear()
+        self.reload_layouts()
+
+    def on_delete_layout(self, index):
+        self.app.delete_layout(index)
+        self.reload_layouts()
 
     def on_export(self):
         path, _ = QFileDialog.getSaveFileName(self, t("Ayarları dışa aktar"),

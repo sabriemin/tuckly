@@ -299,5 +299,18 @@
  "Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir.": "Klicken Sie in die Karte und schreiben Sie; der Text wird automatisch gespeichert.",
  "Kartla birlikte içindeki not da silinir.": "Die enthaltene Notiz wird zusammen mit der Karte gelöscht.",
  "Duvar kâğıdı": "Hintergrundbild",
- "Not kartı ekle": "Notizkarte hinzufügen"
+ "Not kartı ekle": "Notizkarte hinzufügen",
+ "Düzen {0}": "Layout {0}",
+ "“{0}” düzeni kaydedildi.": "Layout „{0}“ gespeichert.",
+ "“{0}” düzeni yüklendi. Dosyalara dokunulmadı.": "Layout „{0}“ geladen. Dateien wurden nicht verändert.",
+ "Monitör düzenini hatırla": "Monitoranordnung merken",
+ "Monitör takılıp çıkarıldığında kartlar, o monitör düzeninde en son bıraktığınız yerlere döner.": "Wird ein Monitor angeschlossen oder entfernt, kehren die Karten an die Stelle zurück, an der sie in dieser Anordnung zuletzt lagen.",
+ "Düzen adı, örn. İş": "Layoutname, z. B. Arbeit",
+ "Kaydet": "Speichern",
+ "Düzenler": "Layouts",
+ "Geçerli düzeni kaydet": "Aktuelles Layout speichern",
+ "Kartların yeri, boyutu ve içeriği bir adla saklanır; sonra tek tıkla geri yüklenir.": "Position, Größe und Inhalt der Karten werden unter einem Namen gespeichert und später mit einem Klick wiederhergestellt.",
+ "Yükle": "Laden",
+ "Sil": "Löschen",
+ "{0} kart · {1}": "{0} Karten · {1}"
 }

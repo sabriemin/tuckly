@@ -1,5 +1,6 @@
 """Uygulama: kartların yönetimi, masaüstünü düzenleme, seçenekler ve başlatma."""
 
+import copy
 import json
 import os
 import shutil
@@ -126,6 +127,15 @@ class FencesApp:
         self._wallpaper = wallpaper_key()
         self._wallpaper_timer = QTimer(interval=20000, timeout=self.check_wallpaper)
         self._wallpaper_timer.start()
+
+        # Monitör düzeni (takılı ekranlar ve yerleri) değişince kartlar o düzendeki yerlerine döner
+        self._screen_sig = self.screen_signature()
+        self._screen_timer = QTimer(singleShot=True, interval=1500, timeout=self.on_screens_changed)
+        for s in QGuiApplication.screens():
+            s.geometryChanged.connect(lambda *_: self._screen_timer.start())
+        qapp.screenAdded.connect(self._on_screen_added)
+        qapp.screenRemoved.connect(lambda *_: self._screen_timer.start())
+        qapp.primaryScreenChanged.connect(lambda *_: self._screen_timer.start())
         self._sync_widget_colors()
         self.panel = ControlPanel(self)
 
@@ -361,6 +371,14 @@ class FencesApp:
         return {"fences": []}
 
     def save(self):
+        if self.config.get("screen_memory", True) and hasattr(self, "_screen_sig"):
+            # Kart yerleri geçerli monitör düzeninin adıyla da saklanır
+            layouts = self.config.setdefault("screen_layouts", {})
+            layouts.pop(self._screen_sig, None)  # en son kullanılan sona gelsin
+            layouts[self._screen_sig] = {d["id"]: [d.get("x", 0), d.get("y", 0), d.get("w", 340), d.get("h", 230)]
+                                         for d in self.config.get("fences", []) if d.get("id")}
+            while len(layouts) > 8:
+                layouts.pop(next(iter(layouts)))
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         tmp = CONFIG_FILE.with_suffix(".tmp")
         tmp.write_text(json.dumps(self.config, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -787,6 +805,96 @@ class FencesApp:
         Toggle.on_color = QColor(TOGGLE_ON) if ap["accent"] == "mono" else look.accent
         Toggle.fg = look.fg_color
         StyleTile.accent = QColor(TOGGLE_ON) if ap["accent"] == "mono" else look.accent
+
+    # ---- Monitör düzeni
+    @staticmethod
+    def screen_signature() -> str:
+        return "|".join(sorted(f"{g.x()},{g.y()},{g.width()}x{g.height()}"
+                               for g in (s.geometry() for s in QGuiApplication.screens())))
+
+    def _on_screen_added(self, screen):
+        screen.geometryChanged.connect(lambda *_: self._screen_timer.start())
+        self._screen_timer.start()
+
+    def on_screens_changed(self):
+        """Monitör takıldı, çıkarıldı ya da yeri değişti: kartları bu düzende en son durdukları yere taşır.
+        Bu düzen ilk kez görülüyorsa kartlar yerinde kalır; ekran dışında kalanlar ana ekrana alınır."""
+        new = self.screen_signature()
+        if new == self._screen_sig:
+            return
+        self._screen_sig = new
+        saved = self.config.get("screen_layouts", {}).get(new) if self.config.get("screen_memory", True) else None
+        geo = QGuiApplication.primaryScreen().availableGeometry()
+        stray = 0
+        for fence in self.fences:
+            d = fence.data
+            g = (saved or {}).get(d.get("id"))
+            if g:
+                d["x"], d["y"], d["w"], d["h"] = g
+            fence.move(d.get("x", 100), d.get("y", 100))
+            fence.resize(d.get("w", 340), fence.height() if fence.is_folded() else d.get("h", 230))
+            if QGuiApplication.screenAt(fence.frameGeometry().center()) is None:
+                fence.move(geo.left() + 40 + 30 * stray, geo.top() + 40 + 30 * stray)
+                stray += 1
+            d["x"], d["y"] = fence.x(), fence.y()
+        self.save()
+
+    def set_screen_memory(self, on):
+        self.config["screen_memory"] = on
+        self.save()
+
+    # ---- Düzen yedekleri: kartların yeri, boyutu ve içeriği adla saklanır
+    def save_layout(self, name=""):
+        layouts = self.config.setdefault("layouts", [])
+        name = name.strip()
+        if not name:
+            i = len(layouts) + 1
+            while any(entry["name"] == t("Düzen {0}").format(i) for entry in layouts):
+                i += 1
+            name = t("Düzen {0}").format(i)
+        for fence in self.fences:
+            fence.store_note()
+            fence.data["x"], fence.data["y"] = fence.x(), fence.y()
+        entry = {"name": name, "saved": int(time.time()), "fences": copy.deepcopy(self.config["fences"])}
+        same = next((i for i, e in enumerate(layouts) if e["name"] == name), None)
+        if same is None:
+            layouts.append(entry)
+        else:
+            layouts[same] = entry  # aynı adla yeniden kaydetmek eskisinin yerini alır
+        self.save()
+        self.panel.reload_layouts()
+        self.notify(t('“{0}” düzeni kaydedildi.').format(name))
+        return entry
+
+    def load_layout(self, index):
+        layouts = self.config.get("layouts", [])
+        if not 0 <= index < len(layouts):
+            return
+        entry = layouts[index]
+        if self.hide_assigned:
+            self.sync_hidden(False)  # şimdiki kartlardaki simgeler masaüstüne dönsün
+        for fence in self.fences:
+            fence.store_note()
+        notes = {d.get("id"): d.get("text", "") for d in self.config["fences"] if d.get("kind") == "note"}
+        fences = copy.deepcopy(entry["fences"])
+        for d in fences:  # notların güncel metni korunur: eski düzen yeni yazılanı silmesin
+            if d.get("kind") == "note" and d.get("id") in notes:
+                d["text"] = notes[d["id"]]
+        self.config["fences"] = fences
+        self.close_popups()
+        self.rebuild_cards()
+        if self.hide_assigned:
+            self.sync_hidden(True)
+        self.refresh_all()
+        self.save()
+        self.notify(t('“{0}” düzeni yüklendi. Dosyalara dokunulmadı.').format(entry["name"]))
+
+    def delete_layout(self, index):
+        layouts = self.config.get("layouts", [])
+        if 0 <= index < len(layouts):
+            del layouts[index]
+            self.save()
+            self.panel.reload_layouts()
 
     def check_wallpaper(self):
         if appearance(self.config).get("accent") != "wallpaper":

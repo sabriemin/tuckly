@@ -299,5 +299,18 @@
  "Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir.": "Cliquez dans la carte et écrivez ; le texte est enregistré automatiquement.",
  "Kartla birlikte içindeki not da silinir.": "La note est supprimée avec la carte.",
  "Duvar kâğıdı": "Fond d'écran",
- "Not kartı ekle": "Ajouter une carte de notes"
+ "Not kartı ekle": "Ajouter une carte de notes",
+ "Düzen {0}": "Disposition {0}",
+ "“{0}” düzeni kaydedildi.": "Disposition « {0} » enregistrée.",
+ "“{0}” düzeni yüklendi. Dosyalara dokunulmadı.": "Disposition « {0} » chargée. Aucun fichier n'a été modifié.",
+ "Monitör düzenini hatırla": "Mémoriser la configuration d'écrans",
+ "Monitör takılıp çıkarıldığında kartlar, o monitör düzeninde en son bıraktığınız yerlere döner.": "Lorsqu'un écran est branché ou retiré, les cartes reviennent là où vous les aviez laissées dans cette configuration.",
+ "Düzen adı, örn. İş": "Nom, p. ex. Travail",
+ "Kaydet": "Enregistrer",
+ "Düzenler": "Dispositions",
+ "Geçerli düzeni kaydet": "Enregistrer la disposition actuelle",
+ "Kartların yeri, boyutu ve içeriği bir adla saklanır; sonra tek tıkla geri yüklenir.": "La position, la taille et le contenu des cartes sont enregistrés sous un nom, puis restaurés en un clic.",
+ "Yükle": "Charger",
+ "Sil": "Supprimer",
+ "{0} kart · {1}": "{0} cartes · {1}"
 }
