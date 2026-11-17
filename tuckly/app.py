@@ -1,0 +1,751 @@
+"""Uygulama: kartların yönetimi, masaüstünü düzenleme, seçenekler ve başlatma."""
+
+import json
+import os
+import shutil
+import sys
+import time
+from pathlib import Path
+
+from PySide6.QtCore import QFileInfo, QFileSystemWatcher, QTimer, Qt
+from PySide6.QtGui import QColor, QCursor, QGuiApplication, QIcon
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtWidgets import QApplication, QFileIconProvider, QMenu, QSystemTrayIcon
+
+from .config import (
+    resource,
+    APP_ID,
+    APP_NAME,
+    CATEGORIES,
+    CATEGORY_EXTS,
+    CONFIG_FILE,
+    DATA_DIR,
+    DEFAULT_FENCES,
+    FENCE_ROOT,
+    LEGACY_DATA_DIR,
+    LEGACY_ID,
+    LOG_FILE,
+    PARTIAL_EXT,
+    SERVER_NAME,
+    TOGGLE_ON,
+    UNDO_FILE,
+    _override,
+)
+from .utils import norm, snap, unique_dest
+from .winapi import (
+    allow_foreground,
+    desktop_window,
+    on_desktop,
+    register_context_menu,
+    desktop_dir,
+    desktop_dirs,
+    desktop_entries,
+    register_app_identity,
+    explorer_view,
+    file_attrs,
+    set_desktop_icons_visible,
+    set_file_hidden,
+)
+from .theme import appearance, base_style, make_app_icon, make_look
+from .widgets import StyleTile, Toggle
+from .card import FenceWindow
+from .notifications import AVAILABLE as BADGES_AVAILABLE, NotificationWatcher
+from .panel import ControlPanel
+
+
+class FencesApp:
+    def __init__(self, qapp: QApplication):
+        self.qapp = qapp
+        self.quitting = False
+        self.badges = []  # bildirim sayıları: [(uygulama adı, kimliği, sayı)]
+        # Dosya simgeleri önbelleği: Windows'tan simge istemek yavaş; her yenilemede yeniden istenmesin
+        self._icon_provider = QFileIconProvider()
+        self._icons = {}
+        self.config = self.load()
+        self.locked = self.config.get("locked", False)
+        self.fences: list[FenceWindow] = []
+
+        if not self.config.get("fences"):
+            self.create_defaults()
+        self.migrate()
+        # "Diğer" kartı en sona: diğer kartların atamalarına bakar
+        self.config["fences"].sort(key=lambda d: d.get("kind") == "rest")
+        self.rest = None
+        self.build_cards()
+
+        # Kartlar masaüstü penceresine bağlıdır. Gezgin çökerse ya da yeniden başlarsa o pencere ve
+        # ona bağlı kartlar yok olur; yeni masaüstü penceresi gelince kartlar yeniden kurulur.
+        self._shell = desktop_window()
+        self._shell_timer = QTimer(interval=2500, timeout=self.check_shell)
+        self._shell_timer.start()
+
+        set_desktop_icons_visible(not self.config.get("hide_icons"))
+        if self.hide_assigned:
+            self.sync_hidden(True)
+
+        self.desk_watcher = QFileSystemWatcher([str(d) for d in desktop_dirs()])
+        self._desk_timer = QTimer(singleShot=True, interval=300, timeout=self.on_desktop_changed)
+        self._auto_timer = QTimer(singleShot=True, interval=3000, timeout=self.auto_sort_tick)
+        self.desk_watcher.directoryChanged.connect(lambda _: self._desk_timer.start())
+
+        # Bildirim sayıları (isteğe bağlı)
+        self.watcher = NotificationWatcher()
+        self.watcher.counts.connect(self.on_badges)
+        self.watcher.denied.connect(self.on_badges_denied)
+        if self.config.get("badges") and BADGES_AVAILABLE:
+            self.watcher.start()
+
+        self._incoming = []  # sağ tık menüsünden gelen, karta eklenecek yollar
+        self._incoming_timer = QTimer(singleShot=True, interval=350, timeout=self.show_add_menu)
+        if self.config.get("context_menu", True) and not _override:  # exe yolu değişmiş olabilir: her açılışta yaz
+            register_context_menu(True, self.launch_command(), str(resource("tuckly.ico")))
+
+        self._look_timer = QTimer(singleShot=True, interval=25, timeout=self.apply_look)
+        self._sync_widget_colors()
+        self.panel = ControlPanel(self)
+
+        self.tray = QSystemTrayIcon(make_app_icon())
+        self.tray.setToolTip(APP_NAME + " — tıklayın: kontrol paneli")
+        m = QMenu()
+        m.setStyleSheet(base_style(make_look(appearance(self.config))))
+        m.addAction("Kontrol paneli", self.show_panel)
+        m.addAction("Görünüm", lambda: self.show_panel(page=1))
+        m.addAction("Masaüstünü düzenle", lambda: self.show_panel(page=2))
+        m.addSeparator()
+        m.addAction("Çıkış", self.quit)
+        self.tray_menu = m
+        self.tray.setContextMenu(m)
+        self.tray.activated.connect(
+            lambda r: self.show_panel() if r in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick) else None)
+        self.tray.show()
+        qapp.aboutToQuit.connect(self.on_quit)
+
+    # ---- Kart pencereleri
+    def build_cards(self):
+        """Ayarlardaki kartlar için pencereleri oluşturur ve gösterir."""
+        self.fences = [FenceWindow(self, d) for d in self.config["fences"]]
+        self.rest = next((f for f in self.fences if f.kind == "rest"), None)
+        if self.rest:
+            self.rest.refresh()
+        for f in self.fences:
+            if f.kind != "rest" or self.config.get("hide_icons"):
+                f.show()
+
+    def check_shell(self):
+        """Masaüstü penceresi değiştiyse (Gezgin yeniden başladı) kartları yeniden kurar."""
+        now = desktop_window()
+        if not now or now == self._shell:
+            return  # Gezgin kapalıysa geri gelmesini bekle
+        self._shell = now
+        self.rebuild_cards()
+
+    def rebuild_cards(self):
+        for f in self.fences:
+            if f.popup:
+                f.popup.hide()
+                f.popup.deleteLater()
+            f.hide()
+            f.deleteLater()
+        self.build_cards()
+        set_desktop_icons_visible(not self.config.get("hide_icons"))
+        if hasattr(self, "panel"):
+            self.panel.reload_cards()
+        for f in self.fences:
+            f.apply_badges()
+
+    # ---- Ayarlar
+    def load(self) -> dict:
+        # Tuckly ayarı yoksa eski addaki (Masaüstü Kutuları) ayarları devral; eski dosyaya dokunma
+        for path in (CONFIG_FILE, LEGACY_DATA_DIR / "ayarlar.json"):
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+        return {"fences": []}
+
+    def save(self):
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = CONFIG_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.config, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, CONFIG_FILE)
+
+    def create_defaults(self):
+        geo = QGuiApplication.primaryScreen().availableGeometry()
+        w, h, gap = 340, 230, 20
+        per_col = max(1, (geo.height() - gap) // (h + gap))
+        fences = []
+        for i, (name, cats) in enumerate(DEFAULT_FENCES):
+            col, row = divmod(i, per_col)
+            d = self._fence_data(
+                name, [], snap(geo.right() - (col + 1) * (w + gap)), snap(geo.top() + gap + row * (h + gap)))
+            d["categories"] = list(cats)
+            fences.append(d)
+        self.config["fences"] = fences
+        self.save()
+
+    def migrate(self):
+        """Eski sürüm: dosyalar kart klasörlerine taşınıyordu. Onları masaüstüne geri getir ve
+        aynı kartta göster. Ayrıca her kurulumda bir "Diğer" kartı olsun."""
+        desk = desktop_dir()
+        changed = False
+        # Görünüm artık genel bir ayar: eski "cam efekti" seçeneği ve kart başına opaklık devralınır
+        ap = appearance(self.config)
+        if "glass" in self.config:
+            if not self.config.pop("glass"):
+                ap["style"] = "flat"
+            changed = True
+        if self.config.get("schema", 1) < 2:  # bir kez: eski kart başına varsayılanları genel ayara bağla
+            for d in self.config["fences"]:
+                d["opacity"] = None
+                if d.get("theme") == "graphite":
+                    d["theme"] = None
+            self.config["schema"] = 2
+            changed = True
+        if self.config.get("schema", 1) < 3:  # bir kez: elle yazılmış uzantı kurallarını kategorilere çevir
+            for d in self.config["fences"]:
+                rules, cats = set(d.get("rules", [])), list(d.get("categories", []))
+                for key, _, exts in CATEGORIES:
+                    if exts and key not in cats and len(rules & set(exts)) * 2 >= len(exts):
+                        cats.append(key)
+                covered = {e for k in cats for e in CATEGORY_EXTS.get(k, ())}
+                d["categories"] = cats
+                d["rules"] = sorted(rules - covered)
+                d.setdefault("sort", "name")
+            self.config["schema"] = 3
+            changed = True
+        for d in self.config["fences"]:
+            if "kind" in d:
+                continue
+            changed = True
+            folder = Path(d.get("folder", ""))
+            under_root = bool(d.get("folder")) and norm(folder.parent) == norm(FENCE_ROOT)
+            if under_root or not d.get("folder"):
+                d["kind"], items = "desktop", []
+                if under_root and folder.exists():
+                    for p in list(folder.iterdir()):
+                        try:
+                            dst = unique_dest(desk, p.name)
+                            shutil.move(str(p), str(dst))
+                            items.append(str(dst))
+                        except Exception:  # noqa: BLE001
+                            pass
+                    try:
+                        folder.rmdir()
+                    except OSError:
+                        pass
+                d["items"] = items
+                d.pop("folder", None)
+            else:
+                d["kind"] = "folder"
+            d.pop("color", None)
+        try:  # boş kalan eski kök klasörü temizle
+            if FENCE_ROOT.exists() and not any(FENCE_ROOT.iterdir()):
+                FENCE_ROOT.rmdir()
+        except OSError:
+            pass
+        if not any(d.get("kind") == "rest" for d in self.config["fences"]):
+            geo = QGuiApplication.primaryScreen().availableGeometry()
+            rest = self._fence_data("Diğer", [], snap(geo.left() + 20), snap(geo.top() + 20))
+            rest["kind"] = "rest"
+            self.config["fences"].append(rest)
+            changed = True
+        for d in self.config["fences"]:
+            if "id" not in d:
+                d["id"] = os.urandom(6).hex()
+                changed = True
+        if changed:
+            self.save()
+
+    @staticmethod
+    def _fence_data(name, rules, x, y, kind="desktop", folder=None):
+        d = {"id": os.urandom(6).hex(), "name": name, "kind": kind, "items": [], "rules": rules,
+             "x": x, "y": y, "w": 340, "h": 230,
+             "collapsed": False, "icon_size": 36, "theme": None, "opacity": None,
+             "categories": [], "sort": "name", "order": []}
+        if folder:
+            d["folder"] = folder
+        return d
+
+    # ---- Atamalar (dosyalar masaüstünde kalır, kart sadece gösterir)
+    def assigned_keys(self):
+        return {norm(p) for f in self.fences if f.kind == "desktop" for p in f.data["items"]}
+
+    def assign(self, path, fence):
+        key = norm(path)
+        for f in self.fences:
+            if f.kind == "desktop":
+                f.data["items"] = [p for p in f.data["items"] if norm(p) != key]
+        placed = fence is not None and fence.kind == "desktop"
+        if placed:
+            fence.data["items"].append(str(path))
+        if self.hide_assigned:  # karta konan simge masaüstünde gizlenir, karttan çıkınca geri gelir
+            self._hide(path, placed)
+        self.save()
+
+    def _hide(self, path, hide: bool):
+        """Bir dosyanın masaüstü simgesini gizler ya da geri getirir.
+
+        Gezgin gizli dosyaları gösterecek şekilde ayarlıysa "gizli" işareti yetmez (simge soluk
+        görünür); o durumda dosya ayrıca "sistem" olarak işaretlenir. Bu işareti Tuckly'nin koyduğu
+        dosyalar ayarlarda tutulur ki geri alırken yalnızca kendi koyduğumuz işaret kaldırılsın."""
+        marked = self.config.setdefault("system_marked", [])
+        key = str(path)
+        if hide:
+            shows_hidden, shows_system = explorer_view()
+            attrs = file_attrs(path)
+            system = shows_hidden and not shows_system and attrs is not None and not attrs & 0x4
+            if set_file_hidden(path, True, system) and system and key not in marked:
+                marked.append(key)
+        else:
+            set_file_hidden(path, False, key in marked)
+            if key in marked:
+                marked.remove(key)
+
+    def path_renamed(self, old, new):
+        marked = self.config.setdefault("system_marked", [])
+        if str(old) in marked:
+            marked[marked.index(str(old))] = str(new)
+
+    @property
+    def hide_assigned(self) -> bool:
+        return self.config.get("hide_assigned", True)
+
+    def sync_hidden(self, hide: bool):
+        """Kartlara yerleşmiş tüm dosyaların masaüstündeki simgesini gizler ya da geri getirir.
+        Dosyalar yerinden oynamaz; yalnızca "gizli" özniteliği değişir."""
+        for f in self.fences:
+            if f.kind == "desktop":
+                for p in f.data["items"]:
+                    self._hide(p, hide)
+
+    def set_hide_assigned(self, on):
+        self.config["hide_assigned"] = on
+        self.sync_hidden(on)
+        self.save()
+
+    def refresh_all(self):
+        for f in self.fences:
+            if f.kind != "rest":
+                f.refresh()
+        if self.rest:
+            self.rest.refresh()
+
+    def on_desktop_changed(self):
+        self.refresh_all()
+        if self.config.get("auto_sort"):
+            self._auto_timer.start()
+
+    # ---- Ortak olaylar
+    def notify(self, text, warn=False):
+        if hasattr(self, "panel"):
+            self.panel.set_status(text)
+        if hasattr(self, "tray") and not _override:  # testler gerçek ekrana bildirim göndermesin
+            if warn:
+                self.tray.showMessage(APP_NAME, text, QSystemTrayIcon.Warning, 3500)
+            else:  # bilgi bildirimlerinde Windows'un mavi "i" simgesi yerine Tuckly logosu
+                self.tray.showMessage(APP_NAME, text, make_app_icon(), 3500)
+
+    def fence_changed(self, fence, source=None):
+        fence.apply_settings()
+        panel = getattr(self, "panel", None)
+        for ed in (fence.settings, panel.editor if panel else None):
+            if ed and ed is not source and ed.fence is fence:
+                ed.load()
+        if panel:
+            panel.update_names()
+        self.save()
+
+    def show_panel(self, fence=None, page=0):
+        if isinstance(fence, FenceWindow):
+            self.panel.reload_cards(select=fence)
+        self.panel.set_page(page)
+        self.panel.show()
+        self.panel.setWindowState(self.panel.windowState() & ~Qt.WindowMinimized)
+        self.panel.raise_()
+        self.panel.activateWindow()
+
+    # ---- Kart yönetimi
+    def new_fence(self, name=None, folder=None, pos=None):
+        if name is None:
+            base, i = "Yeni Kart", 2
+            names = {f.data["name"] for f in self.fences}
+            name = base
+            while name in names:
+                name = f"{base} {i}"
+                i += 1
+        geo = QGuiApplication.primaryScreen().availableGeometry()
+        off = 30 * (len(self.fences) % 6)
+        if pos is not None:  # örn. sağ tık menüsünden: imlecin olduğu ekranda ve yerde
+            geo = (QGuiApplication.screenAt(pos) or QGuiApplication.primaryScreen()).availableGeometry()
+            x = max(geo.left(), min(pos.x() - 30, geo.right() - 350))
+            y = max(geo.top(), min(pos.y() - 20, geo.bottom() - 240))
+        else:
+            x, y = geo.center().x() - 170 + off, geo.center().y() - 115 + off
+        data = self._fence_data(name, [], snap(x), snap(y), kind="folder" if folder else "desktop", folder=folder)
+        # "Diğer" kartı listenin sonunda kalsın
+        idx = self.fences.index(self.rest) if self.rest in self.fences else len(self.fences)
+        self.config["fences"].insert(idx, data)
+        f = FenceWindow(self, data)
+        self.fences.insert(idx, f)
+        f.show()
+        self.save()
+        return f
+
+    def remove_fence(self, fence):
+        if fence is None or fence not in self.fences or fence.kind == "rest":
+            return
+        if fence.kind == "desktop":  # karttaki dosyalar masaüstünde yeniden görünsün
+            for p in fence.data["items"]:
+                self._hide(p, False)
+        self.config["fences"].remove(fence.data)
+        self.fences.remove(fence)
+        fence.vanish()
+        self.save()
+        self.refresh_all()
+        self.panel.reload_cards()
+        self.notify(f"“{fence.data['name']}” kartı kaldırıldı. Dosyalara dokunulmadı.")
+
+    # ---- Masaüstünü düzenleme
+    def plan_sort(self, min_age=0.0):
+        """Henüz hiçbir karta yerleşmemiş masaüstü öğelerini kartların kategorilerine göre eşleştirir.
+        Aynı kategori birden çok kartta seçiliyse listede önce gelen kart kazanır."""
+        exts, folder_card = {}, None
+        for f in self.fences:
+            if f.kind != "desktop" or f.data.get("lock_content"):  # içeriği kilitli karta yerleştirme
+                continue
+            for key in f.data.get("categories", []):
+                if key == "folders":
+                    folder_card = folder_card or f
+                for ext in CATEGORY_EXTS.get(key, ()):
+                    exts.setdefault(ext, f)
+            for ext in f.data.get("rules", []):  # elle eklenen ek uzantılar
+                exts.setdefault(ext, f)
+        taken = self.assigned_keys()
+        plan, now = [], time.time()
+        for p in sorted(desktop_entries(), key=lambda p: p.name.lower()):
+            try:
+                if norm(p) in taken:
+                    continue
+                if p.is_dir():
+                    f = folder_card
+                else:
+                    if p.suffix.lower() in PARTIAL_EXT:
+                        continue
+                    if min_age and now - p.stat().st_mtime < min_age:
+                        continue
+                    f = exts.get(p.suffix.lower().lstrip("."))
+            except OSError:
+                continue
+            if f:
+                plan.append((p, f))
+        return plan
+
+    def execute_sort(self, plan):
+        """Dosyaları taşımaz; yalnızca kartlara yerleştirir (geri alınabilir)."""
+        done = []
+        for path, fence in plan:
+            self.assign(path, fence)
+            done.append(str(path))
+        if done:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            UNDO_FILE.write_text(json.dumps({"time": time.time(), "assigned": done},
+                                            ensure_ascii=False, indent=1), encoding="utf-8")
+        self.refresh_all()
+        return done, []
+
+    def auto_sort_tick(self):
+        plan = self.plan_sort(min_age=3)
+        if plan:
+            done, _ = self.execute_sort(plan)
+            if done:
+                self.notify(f"{len(done)} yeni dosya kartlara yerleştirildi.")
+        if any(p.suffix.lower() in PARTIAL_EXT for p in desktop_entries()):
+            self._auto_timer.start()
+
+    def undo_last(self):
+        try:
+            data = json.loads(UNDO_FILE.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            self.notify("Geri alınacak bir düzenleme yok.")
+            return
+        paths = data.get("assigned", [])
+        for p in paths:
+            self.assign(p, None)
+        UNDO_FILE.unlink(missing_ok=True)
+        self.refresh_all()
+        self.notify(f"{len(paths)} dosya kartlardan çıkarıldı (masaüstünde duruyorlar).")
+        self.panel.refresh_plan()
+
+    # ---- Seçenekler
+    def set_auto_sort(self, on):
+        self.config["auto_sort"] = on
+        self.save()
+        if on:
+            self._auto_timer.start(500)
+
+    def set_hide_icons(self, on):
+        self.config["hide_icons"] = on
+        self.save()
+        set_desktop_icons_visible(not on)
+        if self.rest:  # simgeler gizliyken kartsız öğeler "Diğer" kartında görünür
+            self.rest.refresh()
+            self.rest.setVisible(on)
+
+    def icon_for(self, path) -> QIcon:
+        """Dosyanın simgesi; dosya değişmediyse önbellekten gelir."""
+        try:
+            stamp = path.stat().st_mtime
+        except OSError:
+            stamp = 0
+        hit = self._icons.get(str(path))
+        if hit and hit[0] == stamp:
+            return hit[1]
+        icon = self._icon_provider.icon(QFileInfo(str(path)))
+        self._icons[str(path)] = (stamp, icon)
+        return icon
+
+    @property
+    def animations(self) -> bool:
+        return bool(appearance(self.config).get("animations", True))
+
+    def close_popups(self, keep=None):
+        """Açık kart ayarı pencerelerini kapatır (aynı anda yalnızca biri açık kalır)."""
+        for f in self.fences:
+            if f is not keep and f.popup and f.popup.isVisible():
+                f.popup.dismiss()
+
+    # ---- Bildirim sayıları
+    def set_badges(self, on):
+        self.config["badges"] = on
+        self.save()
+        if on:
+            self.watcher.start(ask_permission=True)
+        else:
+            self.watcher.stop()
+
+    def on_badges(self, counts):
+        if counts != self.badges:
+            self.badges = counts
+            for f in self.fences:
+                f.apply_badges()
+
+    def on_badges_denied(self):
+        self.watcher.stop()
+        if self.config.get("badges"):
+            self.config["badges"] = False
+            self.save()
+            self.notify("Bildirim sayıları için Windows izni verilmedi. Ayarlar > Gizlilik > Bildirimler "
+                        "bölümünden izin verip yeniden açabilirsiniz.", warn=True)
+
+    # ---- Görünüm
+    def set_appearance(self, key, value):
+        """Bir görünüm ayarını değiştirir; kartlar ve panel kısa bir gecikmeyle yeniden çizilir."""
+        appearance(self.config)[key] = value
+        self._look_timer.start()
+
+    def reset_appearance(self):
+        self.config["appearance"] = {}
+        self.apply_look()
+        self.panel.reload_appearance()
+
+    def apply_look(self):
+        self._sync_widget_colors()
+        for f in self.fences:
+            f.apply_settings()
+        self.panel.apply_look()
+        self.tray_menu.setStyleSheet(base_style(make_look(appearance(self.config))))
+        self.save()
+
+    def _sync_widget_colors(self):
+        ap = appearance(self.config)
+        look = make_look(ap)
+        Toggle.on_color = QColor(TOGGLE_ON) if ap["accent"] == "mono" else look.accent
+        Toggle.fg = look.fg_color
+        StyleTile.accent = QColor(TOGGLE_ON) if ap["accent"] == "mono" else look.accent
+
+    def set_locked(self, on):
+        self.locked = on
+        self.config["locked"] = on
+        self.save()
+        for f in self.fences:
+            f.apply_settings()
+
+    RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+    @staticmethod
+    def launch_command() -> str:
+        """Tuckly'yi başlatan komut: derlenmiş exe ya da (kaynak koddan çalışırken) pythonw + run.py."""
+        if getattr(sys, "frozen", False):
+            return f'"{sys.executable}"'
+        pyw = Path(sys.executable).with_name("pythonw.exe")
+        exe = pyw if pyw.exists() else Path(sys.executable)
+        return f'"{exe}" "{Path(__file__).resolve().parent.parent / "run.py"}"'
+
+    def autostart_command(self):
+        return self.launch_command() + " --arkaplan"
+
+    # ---- Sağ tık menüsü ve başka kopyalardan gelen istekler
+    def set_context_menu(self, on):
+        self.config["context_menu"] = on
+        self.save()
+        if not _override:
+            register_context_menu(on, self.launch_command(), str(resource("tuckly.ico")))
+
+    def handle_message(self, data: bytes):
+        """İkinci kez başlatılan Tuckly'nin (ya da sağ tık menüsünün) ilettiği istek."""
+        text = data.decode("utf-8", "replace")
+        if text == "quit":
+            self.quit()
+        elif text == "new":
+            self.new_card_at_cursor()
+        elif text.startswith("add\n"):
+            # Çoklu seçimde Gezgin her öğe için ayrı istek yollar: kısa süre bekleyip hepsini topla
+            self._incoming.append(text[4:])
+            self._incoming_timer.start()
+        else:
+            self.show_panel()
+
+    def new_card_at_cursor(self, paths=()):
+        f = self.new_fence(pos=QCursor.pos())
+        for p in paths:
+            self.assign(p, f)
+        self.refresh_all()
+        self.panel.reload_cards()
+        QTimer.singleShot(250, lambda: f.show_settings(True))  # hemen adını verebilsin
+        return f
+
+    def show_add_menu(self):
+        """Sağ tıkla seçilen masaüstü öğeleri için imlecin yanında "hangi karta?" menüsü açar."""
+        paths, self._incoming = [Path(p) for p in dict.fromkeys(self._incoming)], []
+        ok = [p for p in paths if p.exists() and on_desktop(p)]
+        if not ok:
+            self.notify("Yalnızca masaüstündeki öğeler karta eklenebilir.")
+            return
+        m = QMenu()
+        m.setStyleSheet(base_style(make_look(appearance(self.config))))
+        head = m.addAction(ok[0].name if len(ok) == 1 else f"{len(ok)} öğe")
+        head.setEnabled(False)
+        m.addSeparator()
+        m.addAction("+  Yeni kart", lambda: self.new_card_at_cursor(ok))
+        cards = [f for f in self.fences if f.kind == "desktop" and not f.data.get("lock_content")]
+        if cards:
+            m.addSeparator()
+        for f in cards:
+            m.addAction(f.data["name"], lambda f=f: self.add_to_card(ok, f))
+        self._add_menu = m  # menü açıkken silinmesin
+        m.popup(QCursor.pos())
+        m.activateWindow()
+
+    def add_to_card(self, paths, fence):
+        for p in paths:
+            self.assign(p, fence)
+        self.refresh_all()
+
+    def is_autostart(self):
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.RUN_KEY, 0,
+                                winreg.KEY_QUERY_VALUE | winreg.KEY_SET_VALUE) as k:
+                try:  # eski addaki kayıt varsa Tuckly'ye çevir
+                    winreg.QueryValueEx(k, LEGACY_ID)
+                    winreg.DeleteValue(k, LEGACY_ID)
+                    winreg.SetValueEx(k, APP_ID, 0, winreg.REG_SZ, self.autostart_command())
+                except OSError:
+                    pass
+                winreg.QueryValueEx(k, APP_ID)
+                return True
+        except OSError:
+            return False
+
+    def set_autostart(self, on):
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+                if on:
+                    winreg.SetValueEx(k, APP_ID, 0, winreg.REG_SZ, self.autostart_command())
+                else:
+                    try:
+                        winreg.DeleteValue(k, APP_ID)
+                    except FileNotFoundError:
+                        pass
+        except OSError as ex:
+            self.notify(f"Başlangıç ayarı değiştirilemedi: {ex}", warn=True)
+
+    def quit(self):
+        self.quitting = True
+        self.qapp.exit(0)
+
+    def on_quit(self):
+        for f in self.fences:
+            f.data["x"], f.data["y"] = f.x(), f.y()
+        self.save()
+        if self.config.get("hide_icons"):
+            set_desktop_icons_visible(True)
+        if self.hide_assigned:  # çıkınca masaüstü eski haline dönsün
+            self.sync_hidden(False)
+            self.save()
+        self.tray.hide()
+
+
+def _log_exception(t, v, tb):
+    import traceback
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        with open(LOG_FILE, "a", encoding="utf-8") as fh:
+            fh.write(time.strftime("%Y-%m-%d %H:%M:%S ") + "".join(traceback.format_exception(t, v, tb)) + "\n")
+    except OSError:
+        pass
+    if sys.stderr:
+        sys.__excepthook__(t, v, tb)
+
+
+def main():
+    sys.excepthook = _log_exception
+    if not _override:
+        register_app_identity()
+    qapp = QApplication(sys.argv)
+    qapp.setQuitOnLastWindowClosed(False)
+    qapp.setApplicationName(APP_NAME)
+    qapp.setStyle("Fusion")
+
+    # Komut satırı isteği: --cik (düzgünce kapat), --yeni-kart, --ekle <yol>; yoksa paneli göster
+    argv = sys.argv
+    msg = b"show"
+    if "--cik" in argv:
+        msg = b"quit"
+    elif "--yeni-kart" in argv:
+        msg = b"new"
+    elif "--ekle" in argv and argv.index("--ekle") + 1 < len(argv):
+        msg = b"add\n" + argv[argv.index("--ekle") + 1].encode("utf-8")
+
+    # Tek kopya: zaten çalışıyorsa isteği ona ilet ve çık
+    sock = QLocalSocket()
+    sock.connectToServer(SERVER_NAME)
+    if sock.waitForConnected(300):
+        allow_foreground()
+        sock.write(msg)
+        sock.flush()
+        sock.waitForBytesWritten(300)
+        return 0
+    if "--cik" in sys.argv:
+        return 0
+    QLocalServer.removeServer(SERVER_NAME)
+    server = QLocalServer()
+    server.listen(SERVER_NAME)
+
+    app = FencesApp(qapp)
+
+    def on_conn():
+        c = server.nextPendingConnection()
+        c.readyRead.connect(lambda: app.handle_message(bytes(c.readAll().data())))
+
+    server.newConnection.connect(on_conn)
+    if msg != b"show":  # Tuckly kapalıyken sağ tık menüsünden başlatıldı: açıldıktan sonra isteği uygula
+        QTimer.singleShot(700, lambda: app.handle_message(msg))
+    elif "--arkaplan" not in sys.argv:
+        QTimer.singleShot(300, app.show_panel)
+    if "--bildirim-testi" in sys.argv:  # bildirimin hangi adla göründüğünü denemek için
+        QTimer.singleShot(1500, lambda: app.notify("Bildirim denemesi."))
+    code = qapp.exec()
+    server.close()
+    return code
