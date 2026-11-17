@@ -160,7 +160,7 @@ class FencesApp:
         self.click_watcher.double_clicked.connect(self.toggle_cards)
         self.launcher = Launcher(self)
         self.hotkeys = Hotkeys(qapp, {"H": self.toggle_cards, "N": self.new_card_at_cursor, "T": self.show_panel,
-                                      "F": self.launcher.toggle})
+                                      "F": lambda: self.launcher.toggle()})
         # Tam ekran uygulama ve kart zamanlamaları için görünürlük denetimi
         self._fullscreen_timer = QTimer(interval=2000, timeout=self.check_fullscreen)
         self._schedule_timer = QTimer(interval=30000, timeout=self.refresh_visibility)
@@ -196,6 +196,8 @@ class FencesApp:
         self._sync_widget_colors()
         self.panel = ControlPanel(self)
         self.panel.setGeometry(geo)
+        self.launcher.deleteLater()  # başlatıcının metinleri yeni dilde kurulsun
+        self.launcher = Launcher(self)
         old.hide()
         old.deleteLater()
         self.build_tray_menu()

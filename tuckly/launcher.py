@@ -132,13 +132,13 @@ class Launcher(QWidget):
             self.list.addItem(it)
         if self.list.count():
             self.list.setCurrentRow(0)
-        row = self.list.sizeHintForRow(0) if self.list.count() else 0
-        self.list.setFixedHeight(row * self.list.count())
+        rows = sum(self.list.sizeHintForRow(i) for i in range(self.list.count()))  # simgeli satırlar daha yüksek
+        self.list.setFixedHeight(rows)
         self.list.setVisible(self.list.count() > 0)
         # Pencere içeriği kadar yüksek olur: arama kutusu + sonuçlar + ipucu satırı
         height = 22 + self.edit.sizeHint().height() + 8 + self.hint.sizeHint().height()
         if self.list.count():
-            height += row * self.list.count() + 8
+            height += rows + 8
         self.setFixedSize(self.W, height)
 
     def open_item(self, item):

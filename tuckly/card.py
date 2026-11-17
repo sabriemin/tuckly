@@ -384,7 +384,6 @@ class TitleBar(QWidget):
         if not self.search.isHidden():
             fixed += 26 + sp
         if self.count.text():
-            self.count.adjustSize()
             fixed += self.count.sizeHint().width() + sp
         if not self.lock.isHidden():
             fixed += self.lock.sizeHint().width() + sp
