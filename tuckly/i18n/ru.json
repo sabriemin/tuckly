@@ -73,7 +73,6 @@
  "İçindeki dosyalar masaüstünde olduğu gibi kalır.": "Файлы из неё останутся на рабочем столе без изменений.",
  "Temel": "Основные",
  "İçerik": "Содержимое",
- "Kilit": "Блокировка",
  "Kategoriler": "Категории",
  "Seçtiğin türdeki masaüstü öğeleri düzenlemede bu karta yerleşir.": "При упорядочении элементы рабочего стола выбранных типов размещаются в этой карточке.",
  "Ek uzantılar": "Дополнительные расширения",
@@ -290,5 +289,15 @@
  "Kısayol tuşları": "Сочетания клавиш",
  "Ctrl+Alt+H kartları gizler ya da gösterir, Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar.": "Ctrl+Alt+H скрывает или показывает карточки, Ctrl+Alt+N создаёт карточку, Ctrl+Alt+T открывает параметры.",
  "Kartları kenarlara yapıştır": "Прилипание карточек к краям",
- "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "Перемещаемая карточка выравнивается по краю экрана и другим карточкам. Удерживайте Alt для свободного перемещения."
+ "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "Перемещаемая карточка выравнивается по краю экрана и другим карточкам. Удерживайте Alt для свободного перемещения.",
+ "Not": "Заметка",
+ "Buraya not yazın": "Напишите заметку здесь",
+ "Üzerine gelince aç": "Открывать при наведении",
+ "Kart yalnızca başlık olarak durur; fare üzerine gelince açılır, ayrılınca kapanır.": "Карточка показывает только заголовок: открывается при наведении указателя и закрывается, когда он уходит.",
+ "Davranış": "Поведение",
+ "Not kartı": "Карточка-заметка",
+ "Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir.": "Щёлкните внутри карточки и пишите: текст сохраняется автоматически.",
+ "Kartla birlikte içindeki not da silinir.": "Заметка удаляется вместе с карточкой.",
+ "Duvar kâğıdı": "Обои",
+ "Not kartı ekle": "Добавить заметку"
 }

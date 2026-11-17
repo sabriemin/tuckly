@@ -73,7 +73,6 @@
  "İçindeki dosyalar masaüstünde olduğu gibi kalır.": "Ses fichiers restent sur le bureau.",
  "Temel": "Essentiel",
  "İçerik": "Contenu",
- "Kilit": "Verrouillage",
  "Kategoriler": "Catégories",
  "Seçtiğin türdeki masaüstü öğeleri düzenlemede bu karta yerleşir.": "Les éléments du bureau des types sélectionnés sont placés dans cette carte lors de l’organisation.",
  "Ek uzantılar": "Extensions supplémentaires",
@@ -290,5 +289,15 @@
  "Kısayol tuşları": "Raccourcis clavier",
  "Ctrl+Alt+H kartları gizler ya da gösterir, Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar.": "Ctrl+Alt+H masque ou affiche les cartes, Ctrl+Alt+N crée une carte, Ctrl+Alt+T ouvre les réglages.",
  "Kartları kenarlara yapıştır": "Aimanter les cartes aux bords",
- "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "La carte déplacée s'aligne sur le bord de l'écran et sur les autres cartes. Maintenez Alt pour la déplacer librement."
+ "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "La carte déplacée s'aligne sur le bord de l'écran et sur les autres cartes. Maintenez Alt pour la déplacer librement.",
+ "Not": "Note",
+ "Buraya not yazın": "Écrivez une note ici",
+ "Üzerine gelince aç": "Ouvrir au survol",
+ "Kart yalnızca başlık olarak durur; fare üzerine gelince açılır, ayrılınca kapanır.": "La carte n'affiche que son titre ; elle s'ouvre au survol du pointeur et se referme ensuite.",
+ "Davranış": "Comportement",
+ "Not kartı": "Carte de notes",
+ "Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir.": "Cliquez dans la carte et écrivez ; le texte est enregistré automatiquement.",
+ "Kartla birlikte içindeki not da silinir.": "La note est supprimée avec la carte.",
+ "Duvar kâğıdı": "Fond d'écran",
+ "Not kartı ekle": "Ajouter une carte de notes"
 }

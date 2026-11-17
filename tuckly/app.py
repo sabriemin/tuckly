@@ -50,6 +50,7 @@ from .winapi import (
     set_file_hidden,
 )
 from .theme import appearance, base_style, make_app_icon, make_look
+from .winapi import wallpaper_key
 from .widgets import StyleTile, Toggle
 from .card import FenceWindow
 from .notifications import AVAILABLE as BADGES_AVAILABLE, NotificationWatcher
@@ -121,6 +122,10 @@ class FencesApp:
             register_context_menu(True, self.launch_command(), str(resource("tuckly.ico")))
 
         self._look_timer = QTimer(singleShot=True, interval=25, timeout=self.apply_look)
+        # Vurgu rengi duvar kâğıdından alınıyorsa, duvar kâğıdı değişince renk de yenilenir
+        self._wallpaper = wallpaper_key()
+        self._wallpaper_timer = QTimer(interval=20000, timeout=self.check_wallpaper)
+        self._wallpaper_timer.start()
         self._sync_widget_colors()
         self.panel = ControlPanel(self)
 
@@ -557,11 +562,11 @@ class FencesApp:
         self.panel.activateWindow()
 
     # ---- Kart yönetimi
-    def new_fence(self, name=None, folder=None, pos=None):
+    def new_fence(self, name=None, folder=None, pos=None, note=False):
         if self.cards_hidden:  # yeni kart görünsün
             self.set_cards_hidden(False)
         if name is None:
-            base, i = t("Yeni Kart"), 2
+            base, i = t("Not") if note else t("Yeni Kart"), 2
             names = {f.data["name"] for f in self.fences}
             name = base
             while name in names:
@@ -575,7 +580,8 @@ class FencesApp:
             y = max(geo.top(), min(pos.y() - 20, geo.bottom() - 240))
         else:
             x, y = geo.center().x() - 170 + off, geo.center().y() - 115 + off
-        data = self._fence_data(name, [], snap(x), snap(y), kind="folder" if folder else "desktop", folder=folder)
+        kind = "note" if note else "folder" if folder else "desktop"
+        data = self._fence_data(name, [], snap(x), snap(y), kind=kind, folder=folder)
         # "Diğer" kartı listenin sonunda kalsın
         idx = self.fences.index(self.rest) if self.rest in self.fences else len(self.fences)
         self.config["fences"].insert(idx, data)
@@ -782,6 +788,14 @@ class FencesApp:
         Toggle.fg = look.fg_color
         StyleTile.accent = QColor(TOGGLE_ON) if ap["accent"] == "mono" else look.accent
 
+    def check_wallpaper(self):
+        if appearance(self.config).get("accent") != "wallpaper":
+            return
+        now = wallpaper_key()
+        if now != self._wallpaper:
+            self._wallpaper = now
+            self.apply_look()
+
     def set_locked(self, on):
         self.locked = on
         self.config["locked"] = on
@@ -896,6 +910,7 @@ class FencesApp:
 
     def on_quit(self):
         for f in self.fences:
+            f.store_note()  # yazılıp henüz kaydedilmemiş not kaybolmasın
             f.data["x"], f.data["y"] = f.x(), f.y()
         self.save()
         if self.config.get("hide_icons"):

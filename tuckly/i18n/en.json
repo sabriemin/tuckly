@@ -73,7 +73,6 @@
  "İçindeki dosyalar masaüstünde olduğu gibi kalır.": "Its files stay on the desktop as they are.",
  "Temel": "Basics",
  "İçerik": "Content",
- "Kilit": "Lock",
  "Kategoriler": "Categories",
  "Seçtiğin türdeki masaüstü öğeleri düzenlemede bu karta yerleşir.": "Desktop items of the types you select are placed in this card when organizing.",
  "Ek uzantılar": "Extra extensions",
@@ -290,5 +289,15 @@
  "Kısayol tuşları": "Keyboard shortcuts",
  "Ctrl+Alt+H kartları gizler ya da gösterir, Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar.": "Ctrl+Alt+H hides or shows the cards, Ctrl+Alt+N creates a new card, Ctrl+Alt+T opens the settings.",
  "Kartları kenarlara yapıştır": "Snap cards to edges",
- "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "A card being moved aligns to the screen edge and to other cards. Hold Alt to move it freely."
+ "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "A card being moved aligns to the screen edge and to other cards. Hold Alt to move it freely.",
+ "Not": "Note",
+ "Buraya not yazın": "Write a note here",
+ "Üzerine gelince aç": "Open on hover",
+ "Kart yalnızca başlık olarak durur; fare üzerine gelince açılır, ayrılınca kapanır.": "The card stays as a title only; it opens when the pointer is over it and closes when the pointer leaves.",
+ "Davranış": "Behavior",
+ "Not kartı": "Note card",
+ "Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir.": "Click inside the card and type; what you write is saved automatically.",
+ "Kartla birlikte içindeki not da silinir.": "The note inside is deleted together with the card.",
+ "Duvar kâğıdı": "Wallpaper",
+ "Not kartı ekle": "Add note card"
 }

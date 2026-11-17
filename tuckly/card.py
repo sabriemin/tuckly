@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMenu,
+    QPlainTextEdit,
     QPushButton,
     QSizeGrip,
     QStackedWidget,
@@ -267,9 +268,10 @@ class FenceList(QListWidget):
         return Qt.LinkAction if e.possibleActions() & Qt.LinkAction else Qt.CopyAction
 
     def dragEnterEvent(self, e):
-        if not e.mimeData().hasUrls() or self.fence.data.get("lock_content"):
+        if not e.mimeData().hasUrls() or self.fence.data.get("lock_content") or self.fence.kind == "note":
             e.ignore()
             return
+        self.fence.begin_peek()  # üzerine gelince açılan kart sürüklemede de açılsın
         self.fence.set_drop_highlight(True)
         # Kart içinde sürükleme: yeniden sıralama (dosyaya dokunulmaz)
         e.setDropAction(Qt.MoveAction if e.source() is self else self._drop_action(e))
@@ -283,7 +285,7 @@ class FenceList(QListWidget):
 
     def dropEvent(self, e):
         self.fence.set_drop_highlight(False)
-        if not e.mimeData().hasUrls() or self.fence.data.get("lock_content"):
+        if not e.mimeData().hasUrls() or self.fence.data.get("lock_content") or self.fence.kind == "note":
             e.ignore()
             return
         if e.source() is self:
@@ -487,7 +489,7 @@ class TitleBar(QWidget):
             self.fence.store_geometry()
 
     def mouseDoubleClickEvent(self, e):
-        if e.button() == Qt.LeftButton:
+        if e.button() == Qt.LeftButton and not self.fence.data.get("rollup"):
             self.fence.toggle_collapsed()
 
 
@@ -616,6 +618,8 @@ class FenceWindow(QWidget):
         self._suspended = False      # taşıma/boyutlandırma sırasında bulanıklık geçici olarak kapalı
         self._force_refresh = False
         self._filter = ""      # kart içi arama metni (küçük harf)
+        self._peek = False     # "üzerine gelince aç" kartı şu an fareyle açık mı
+        self._folded = None    # kartın şu an başlığa daraltılmış görünüp görünmediği
         self.popup = None      # kart ayarları penceresi (ilk açılışta oluşturulur)
         self.settings = None   # o penceredeki ayar formu
 
@@ -646,6 +650,16 @@ class FenceWindow(QWidget):
         pl.addWidget(self.list, 1)
         pl.addWidget(self.empty, 1)
         self.stack.addWidget(page)
+        # Not kartı: dosya listesi yerine serbest metin; yazılanlar ayarlarla birlikte saklanır
+        self.note = named(QPlainTextEdit(), "note")
+        self.note.setPlaceholderText(t("Buraya not yazın"))
+        self.note.setFrameShape(QFrame.NoFrame)
+        self.note.setPlainText(data.get("text", ""))
+        self._note_timer = QTimer(self, singleShot=True, interval=600, timeout=self.store_note)
+        self.note.textChanged.connect(self._note_timer.start)
+        self.stack.addWidget(self.note)
+        if self.kind == "note":
+            self.stack.setCurrentIndex(1)
         lay.addWidget(self.stack, 1)
 
         self.grip = QSizeGrip(self.frame)
@@ -661,6 +675,7 @@ class FenceWindow(QWidget):
         self.watcher.directoryChanged.connect(lambda _: self._refresh_timer.start())
         self._save_timer = QTimer(self, singleShot=True, interval=600, timeout=self.store_geometry)
         self._resume_timer = QTimer(self, singleShot=True, interval=300, timeout=self.resume_blur)
+        self._peek_timer = QTimer(self, singleShot=True, interval=350, timeout=self.end_peek)
 
         self.resize(data.get("w", 340), data.get("h", 230))
         self.move(data.get("x", 100), data.get("y", 100))
@@ -779,7 +794,7 @@ class FenceWindow(QWidget):
             self.suspend_blur()
             self._resume_timer.start()
         self._apply_region()
-        if not self.data.get("collapsed"):
+        if not self.is_folded():
             self._save_timer.start()
 
     def _apply_region(self):
@@ -805,7 +820,7 @@ class FenceWindow(QWidget):
     def store_geometry(self):
         self.data["x"], self.data["y"] = self.x(), self.y()
         self.data["w"] = self.width()
-        if not self.data.get("collapsed"):
+        if not self.is_folded():
             self.data["h"] = self.height()
         self.app.save()
 
@@ -828,24 +843,78 @@ class FenceWindow(QWidget):
         self.list.apply_icon_size(d.get("icon_size", 36), self.look)
         self.setWindowTitle(d["name"])
         # Kilitler: genel kilit konumu ve boyutu, kartın kendi kilitleri ayrı ayrı
-        self.grip.setVisible(not self.app.locked and not d.get("lock_size") and not d.get("collapsed"))
+        self.grip.setVisible(not self.app.locked and not d.get("lock_size") and not self.is_folded())
+        self.title.fold.setVisible(not d.get("rollup"))  # açılır kartta daraltma düğmesine gerek yok
         locked = bool(d.get("lock_content"))
+        self.note.setReadOnly(locked)
         self.list.setDragEnabled(not locked)
         self.list.setEditTriggers(QAbstractItemView.NoEditTriggers if locked else QAbstractItemView.EditKeyPressed)
         self.title.lock.setVisible(bool(d.get("lock_pos") or d.get("lock_size") or locked))
         self.title.set_name(f"{d['emoji']} {d['name']}" if d.get("emoji") else d["name"])
+        if self._folded is not None and self._folded != self.is_folded():  # "üzerine gelince aç" değişti
+            self._fold(self.is_folded())
 
-    def set_collapsed(self, collapsed: bool, save=True):
-        self.data["collapsed"] = collapsed
-        self.title.fold.setText("\uE76C" if collapsed else "\uE70D")
-        self.stack.setVisible(not collapsed)
-        self.frame.layout().setContentsMargins(0, 0, 0, 0 if collapsed else 6)
-        if collapsed:
+    # ---- Daraltma ve "üzerine gelince aç"
+    def is_folded(self) -> bool:
+        """Kart şu an yalnızca başlık olarak mı görünmeli?"""
+        if self.data.get("rollup"):
+            return not self._peek
+        return bool(self.data.get("collapsed"))
+
+    def _fold(self, folded: bool):
+        self._folded = folded
+        self.title.fold.setText("\uE76C" if folded else "\uE70D")
+        self.stack.setVisible(not folded)
+        self.frame.layout().setContentsMargins(0, 0, 0, 0 if folded else 6)
+        if folded:
             self.setFixedHeight(TITLE_H + 2)
         else:
             self.setMinimumHeight(TITLE_H + 90)
             self.setMaximumHeight(16777215)
             self.resize(self.width(), max(self.data.get("h", 230), TITLE_H + 90))
+        self.grip.setVisible(not self.app.locked and not self.data.get("lock_size") and not folded)
+
+    def begin_peek(self):
+        """Açılır kartı açar ve diğer kartların üstüne getirir."""
+        if not self.data.get("rollup"):
+            return
+        self._peek_timer.stop()
+        if not self._peek:
+            self._peek = True
+            self._fold(False)
+            for other in self.app.fences:  # hepsi masaüstünün en altında: ötekileri bunun altına indir
+                if other is not self and other.isVisible():
+                    other.lower()
+
+    def end_peek(self):
+        if not self._peek:
+            return
+        busy = (self.frameGeometry().contains(QCursor.pos()) or (self.popup and self.popup.isVisible())
+                or not self.title.edit.isHidden() or not self.title.find.isHidden() or self.note.hasFocus()
+                or any(user32.GetAsyncKeyState(vk) & 0x8000 for vk in (0x01, 0x02)))
+        if busy and self.data.get("rollup"):
+            self._peek_timer.start()  # hâlâ kullanılıyor: biraz sonra yeniden bak
+            return
+        self._peek = False
+        self._fold(self.is_folded())
+
+    def enterEvent(self, e):
+        super().enterEvent(e)
+        self.begin_peek()
+
+    def leaveEvent(self, e):
+        super().leaveEvent(e)
+        if self._peek:
+            self._peek_timer.start()
+
+    def store_note(self):
+        if self.kind == "note" and self.data.get("text", "") != self.note.toPlainText():
+            self.data["text"] = self.note.toPlainText()
+            self.app.save()
+
+    def set_collapsed(self, collapsed: bool, save=True):
+        self.data["collapsed"] = collapsed
+        self._fold(self.is_folded())
         self.apply_settings()
         if save:
             self.store_geometry()
@@ -1104,6 +1173,9 @@ class FenceWindow(QWidget):
 
     def dragEnterEvent(self, e):
         self.list.dragEnterEvent(e)
+
+    def dragMoveEvent(self, e):
+        self.list.dragMoveEvent(e)
 
     def dragLeaveEvent(self, e):
         self.set_drop_highlight(False)

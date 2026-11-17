@@ -3,15 +3,16 @@
 from dataclasses import dataclass
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPixmap
 
 from .i18n import mark
 from .config import DEFAULT_FONT, ICON_FONT, THEMES, resource
-from .winapi import windows_accent
+from .winapi import wallpaper_key, windows_accent
 
 # Kart stilleri: (anahtar, görünen ad)
 STYLES = (("flat", mark("Düz")), ("frosted", mark("Buzlu Cam")), ("liquid", mark("Sıvı Cam")), ("material", mark("Material You")))
-ACCENT_MODES = (("theme", mark("Tema")), ("mono", mark("Tek renk")), ("system", mark("Windows")), ("custom", mark("Özel")))
+ACCENT_MODES = (("theme", mark("Tema")), ("mono", mark("Tek renk")), ("system", mark("Windows")),
+                ("wallpaper", mark("Duvar kâğıdı")), ("custom", mark("Özel")))
 
 DEFAULT_APPEARANCE = {
     "style": "frosted",        # STYLES anahtarlarından biri
@@ -119,6 +120,39 @@ def mix(c: QColor, other: QColor, t: float) -> QColor:
                   int(c.blue() + (other.blue() - c.blue()) * t))
 
 
+_wallpaper_cache = {}
+
+
+def wallpaper_accent():
+    """Duvar kâğıdındaki baskın canlı renk (QColor); bulunamazsa None. Sonuç dosya değişene kadar saklanır."""
+    key = wallpaper_key()
+    if key is None:
+        return None
+    if key not in _wallpaper_cache:
+        _wallpaper_cache.clear()
+        color = None
+        img = QImage(key[0])
+        if not img.isNull():
+            img = img.scaled(48, 48, Qt.IgnoreAspectRatio, Qt.SmoothTransformation).convertToFormat(QImage.Format_RGB32)
+            buckets = {}
+            for y in range(img.height()):
+                for x in range(img.width()):
+                    c = img.pixelColor(x, y)
+                    h, s, lum = c.hslHueF(), c.hslSaturationF(), c.lightnessF()
+                    if h < 0 or s < 0.25 or not 0.15 < lum < 0.85:
+                        continue  # gri, çok koyu ya da çok açık pikseller vurgu rengi olmaz
+                    b = buckets.setdefault(int(h * 24) % 24, [0.0, 0.0, 0.0])
+                    weight = s * (1 - abs(lum - 0.5))
+                    b[0] += weight
+                    b[1] += h * weight
+                    b[2] += s * weight
+            if buckets:
+                total, hue, sat = max(buckets.values(), key=lambda b: b[0])
+                color = QColor.fromHslF(hue / total, min(0.9, max(0.55, sat / total)), 0.62)
+        _wallpaper_cache[key] = color
+    return _wallpaper_cache[key]
+
+
 def make_look(ap: dict, card_theme=None, card_opacity=None) -> Look:
     """Genel görünüm ayarlarından (ve varsa kartın kendi renginden/opaklığından) Look üretir."""
     seed, satf, theme_accent = seed_of(card_theme or ap["theme"])
@@ -141,6 +175,10 @@ def make_look(ap: dict, card_theme=None, card_opacity=None) -> Look:
         accent = QColor(ap["accent_color"])
     elif mode == "system":
         accent = QColor(windows_accent() or "#0a84ff")
+    elif mode == "wallpaper":
+        accent = wallpaper_accent() or theme_accent
+        if light:
+            accent = accent.darker(135)
     else:
         accent = theme_accent.darker(135) if light else theme_accent
     opacity = ap["opacity"] if card_opacity is None else card_opacity
@@ -263,6 +301,9 @@ FenceList {{ background: transparent; border: none; outline: 0; }}
 FenceList QLineEdit {{ padding: 2px 4px; border-radius: 5px; font-size: 8.5pt;
                       background: {"rgb(250,250,252)" if look.light else "rgb(20,20,26)"}; }}
 #emptyHint {{ color: rgba({fg},110); {look.font_css(0, 400)} }}
+QPlainTextEdit#note {{ background: transparent; border: none; color: rgb({fg}); padding: 2px 10px 6px 12px;
+                       selection-background-color: {look.accent.name()}; selection-color: {look.on_accent};
+                       {look.font_css(1, 400)} }}
 """
 
 

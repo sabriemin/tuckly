@@ -16,7 +16,7 @@ EXCLUDED_FILES = (
     "Qt6Multimedia", "Qt6Sql", "Qt6Test", "Qt6DBus", "d3dcompiler", "qtwebengine",
     "\\translations\\", "\\qml\\", "\\plugins\\sqldrivers", "\\plugins\\multimedia", "\\plugins\\qmltooling",
     "\\plugins\\generic", "\\plugins\\networkinformation", "\\plugins\\tls", "\\plugins\\platforminputcontexts",
-    "qsvg", "qpdf", "qtiff", "qwebp", "qicns", "qtga", "qwbmp", "qgif", "qjpeg",
+    "qsvg", "qpdf", "qtiff", "qwebp", "qicns", "qtga", "qwbmp", "qgif",
 )
 
 

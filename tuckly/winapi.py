@@ -349,3 +349,14 @@ def set_class_icon(widget, ico_path) -> bool:
         return done
     except (OSError, AttributeError, ValueError):
         return False
+
+
+def wallpaper_key():
+    """Geçerli duvar kâğıdı: (dosya yolu, değişiklik zamanı); okunamazsa None."""
+    try:
+        buf = ctypes.create_unicode_buffer(520)
+        if not user32.SystemParametersInfoW(0x0073, 520, buf, 0) or not buf.value:  # SPI_GETDESKWALLPAPER
+            return None
+        return buf.value, Path(buf.value).stat().st_mtime
+    except OSError:
+        return None

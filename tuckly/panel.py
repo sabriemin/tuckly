@@ -266,6 +266,7 @@ class ControlPanel(QWidget):
         left.addWidget(self.card_list, 1)
         left.addWidget(self._button(t("+  Yeni kart"), self.on_new, "primary"))
         left.addWidget(self._button(t("Klasörü kart olarak ekle…"), self.on_add_folder))
+        left.addWidget(self._button(t("Not kartı ekle"), self.on_add_note))
         lw = QWidget()
         lw.setLayout(left)
         lw.setFixedWidth(220)
@@ -307,6 +308,10 @@ class ControlPanel(QWidget):
         self.reload_cards(select=f)
         self.editor.name.setFocus()
         self.editor.name.selectAll()
+
+    def on_add_note(self):
+        f = self.app.new_fence(note=True)
+        self.reload_cards(select=f)
 
     def on_add_folder(self):
         path = QFileDialog.getExistingDirectory(self, t("Kartta gösterilecek klasörü seçin"), str(Path.home()))

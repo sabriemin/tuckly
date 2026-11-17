@@ -40,7 +40,7 @@ class CardSettings(QWidget):
         lay.setContentsMargins(12, 2, 12, 12) if in_card else lay.setContentsMargins(0, 0, 6, 12)
         lay.setSpacing(10)
 
-        tab_box, self.tabs = segmented(((t("Temel"), 0), (t("İçerik"), 1), (t("Kilit"), 2)), self.set_tab)
+        tab_box, self.tabs = segmented(((t("Temel"), 0), (t("İçerik"), 1), (t("Davranış"), 2)), self.set_tab)
         lay.addWidget(tab_box)
         # Sekmeler alt alta eklenir, yalnızca seçili olan gösterilir: form her zaman o sekmenin boyundadır
         self.pages = [build() for build in (self._general_tab, self._content_tab, self._lock_tab)]
@@ -194,6 +194,13 @@ class CardSettings(QWidget):
                           "Yalnızca masaüstü simgeleri gizliyken görünür."), icon=""),
         ])
         v.addWidget(self.rest_info)
+
+        # Not kartı: açıklama
+        self.note_info = make_group([
+            setting_row(t("Not kartı"),
+                        t("Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir."), icon="\uE70B"),
+        ])
+        v.addWidget(self.note_info)
         return page
 
     # ---------------------------------------------------------------- Kilit
@@ -202,6 +209,8 @@ class CardSettings(QWidget):
         self.locks = {}
         rows = []
         for key, title, desc, glyph in (
+                ("rollup", t("Üzerine gelince aç"),
+                 t("Kart yalnızca başlık olarak durur; fare üzerine gelince açılır, ayrılınca kapanır."), "\uE70D"),
                 ("lock_pos", t("Konumu kilitle"), t("Kart başlığından sürüklenerek taşınamaz."), ""),
                 ("lock_size", t("Boyutu kilitle"), t("Kart köşesinden boyutlandırılamaz."), ""),
                 ("lock_content", t("İçeriği kilitle"),
@@ -287,9 +296,11 @@ class CardSettings(QWidget):
         self.rules_box.setVisible(kind == "desktop")
         self.folder_box.setVisible(kind == "folder")
         self.rest_info.setVisible(kind == "rest")
+        self.note_info.setVisible(kind == "note")
         self.remove_group.setVisible(kind != "rest")
         self.confirm_text.setText(
             t("Klasör ve içindekiler olduğu gibi kalır.") if kind == "folder" else
+            t("Kartla birlikte içindeki not da silinir.") if kind == "note" else
             t("İçindeki dosyalar masaüstünde olduğu gibi kalır."))
         self.folder.setText(str(f.folder) if f.folder else "")
         self._loading = False

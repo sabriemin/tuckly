@@ -73,7 +73,6 @@
  "İçindeki dosyalar masaüstünde olduğu gibi kalır.": "Die enthaltenen Dateien bleiben unverändert auf dem Desktop.",
  "Temel": "Grundlagen",
  "İçerik": "Inhalt",
- "Kilit": "Sperre",
  "Kategoriler": "Kategorien",
  "Seçtiğin türdeki masaüstü öğeleri düzenlemede bu karta yerleşir.": "Desktopelemente der ausgewählten Typen werden beim Aufräumen in diese Karte einsortiert.",
  "Ek uzantılar": "Zusätzliche Erweiterungen",
@@ -290,5 +289,15 @@
  "Kısayol tuşları": "Tastenkürzel",
  "Ctrl+Alt+H kartları gizler ya da gösterir, Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar.": "Strg+Alt+H blendet die Karten aus oder ein, Strg+Alt+N erstellt eine neue Karte, Strg+Alt+T öffnet die Einstellungen.",
  "Kartları kenarlara yapıştır": "Karten an Kanten ausrichten",
- "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "Eine verschobene Karte richtet sich am Bildschirmrand und an anderen Karten aus. Mit gedrückter Alt-Taste frei verschieben."
+ "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "Eine verschobene Karte richtet sich am Bildschirmrand und an anderen Karten aus. Mit gedrückter Alt-Taste frei verschieben.",
+ "Not": "Notiz",
+ "Buraya not yazın": "Notiz hier eingeben",
+ "Üzerine gelince aç": "Beim Überfahren öffnen",
+ "Kart yalnızca başlık olarak durur; fare üzerine gelince açılır, ayrılınca kapanır.": "Die Karte zeigt nur ihren Titel; sie öffnet sich, wenn der Mauszeiger darüber ist, und schließt sich danach wieder.",
+ "Davranış": "Verhalten",
+ "Not kartı": "Notizkarte",
+ "Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir.": "Klicken Sie in die Karte und schreiben Sie; der Text wird automatisch gespeichert.",
+ "Kartla birlikte içindeki not da silinir.": "Die enthaltene Notiz wird zusammen mit der Karte gelöscht.",
+ "Duvar kâğıdı": "Hintergrundbild",
+ "Not kartı ekle": "Notizkarte hinzufügen"
 }
