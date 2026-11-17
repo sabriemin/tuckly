@@ -1,10 +1,8 @@
 @echo off
-rem Tuckly.exe dosyasini dist\Tuckly klasorune derler.
+rem Tuckly.exe dosyasini dist\Tuckly klasorune derler (tarif: tuckly.spec).
 cd /d "%~dp0"
-python -m pip install --upgrade PySide6 pyinstaller
-python -m PyInstaller --noconfirm --clean --windowed --name Tuckly ^
-  --icon assets\tuckly.ico --version-file tools\version_info.txt ^
-  --add-data "tuckly\assets;assets" --add-data "tuckly\i18n;i18n" run.py
+python -m pip install --upgrade -r requirements.txt pyinstaller
+python -m PyInstaller --noconfirm --clean tuckly.spec
 echo.
 echo Hazir: dist\Tuckly\Tuckly.exe
 pause

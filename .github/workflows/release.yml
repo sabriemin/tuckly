@@ -1,0 +1,54 @@
+# Bir sürüm etiketi (v1.2.3) gönderildiğinde Tuckly.exe'yi, kurulum dosyasını ve taşınabilir zip'i üretir,
+# GitHub sürümüne ekler. Her gönderimde ve değişiklik isteğinde ise yalnızca denetimleri çalıştırır.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyinstaller pyflakes
+
+      - name: Lint
+        run: python -m pyflakes tuckly tests
+
+      - name: Check translations
+        run: python -X utf8 tools/extract_strings.py
+
+      - name: Smoke test
+        run: python -X utf8 tests/smoke_test.py
+
+      - name: Build Tuckly.exe
+        run: python -m PyInstaller --noconfirm --clean tuckly.spec
+
+      - name: Build installer and portable zip
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\tuckly.iss
+          Compress-Archive -Path dist\Tuckly -DestinationPath "dist\Tuckly-$version-portable.zip"
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Tuckly-Setup-*.exe
+            dist/Tuckly-*-portable.zip
+          generate_release_notes: true

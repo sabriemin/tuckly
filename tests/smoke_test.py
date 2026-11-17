@@ -212,6 +212,19 @@ while app.tour.active() and steps < 20:
     steps += 1
 assert steps == 7 and not app.tour.active(), steps
 
+# 5k) Sürüm karşılaştırma ve kaldırma temizliği (gizlenen simgeler geri gelir, ayarlar kalır)
+from tuckly.app import run_cleanup  # noqa: E402
+from tuckly.updater import is_newer, repo_api_url  # noqa: E402
+
+assert is_newer("v0.2.0", "0.1.9") and is_newer("1.0", "0.9.9") and not is_newer("0.1.0", "0.1.0")
+assert repo_api_url("https://github.com/kisi/tuckly") == "https://api.github.com/repos/kisi/tuckly/releases/latest"
+assert repo_api_url("") is None
+app.save()
+assert is_hidden(desk / "Rapor.pdf")
+run_cleanup()
+assert not any(is_hidden(p) for p in desk.iterdir()) and config.CONFIG_FILE.exists()
+app.sync_hidden(True)
+
 # 6) Kart ayarları kartın yanında ayrı bir pencerede açılır; aynı anda yalnızca biri açık kalır
 app.show_panel(medya)
 medya.show_settings(True)

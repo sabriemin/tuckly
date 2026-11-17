@@ -7,14 +7,15 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QFileInfo, QFileSystemWatcher, QTimer, Qt
-from PySide6.QtGui import QColor, QCursor, QGuiApplication, QIcon
+from PySide6.QtCore import QFileInfo, QFileSystemWatcher, QTimer, QUrl, Qt
+from PySide6.QtGui import QColor, QCursor, QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileIconProvider, QMenu, QSystemTrayIcon
 
 from . import __version__
 from .i18n import set_language, t
 from .config import (
+    REPO_URL,
     resource,
     APP_ID,
     APP_NAME,
@@ -54,6 +55,7 @@ from .card import FenceWindow
 from .notifications import AVAILABLE as BADGES_AVAILABLE, NotificationWatcher
 from .panel import ControlPanel
 from .tour import Tour
+from .updater import UpdateChecker, is_newer
 
 
 class FencesApp:
@@ -99,6 +101,17 @@ class FencesApp:
         self.watcher.denied.connect(self.on_badges_denied)
         if self.config.get("badges") and BADGES_AVAILABLE:
             self.watcher.start()
+
+        # Güncelleme denetimi: yalnızca depo adresi tanımlıysa ve kullanıcı açık bıraktıysa, günde bir kez
+        self.update_state = "idle"   # idle | checking | current | available | error | downloading
+        self.update_info = None
+        self._update_silent = True
+        self.updater = UpdateChecker()
+        self.updater.finished.connect(self.on_update_result)
+        self.updater.downloaded.connect(self.on_update_downloaded)
+        if (REPO_URL and not _override and self.config.get("update_check", True)
+                and time.time() - self.config.get("update_checked", 0) > 86400):
+            QTimer.singleShot(8000, lambda: self.check_updates(silent=True))
 
         self._incoming = []  # sağ tık menüsünden gelen, karta eklenecek yollar
         self._incoming_timer = QTimer(singleShot=True, interval=350, timeout=self.show_add_menu)
@@ -146,6 +159,83 @@ class FencesApp:
             register_context_menu(True, self.launch_command(), str(resource("tuckly.ico")))
         if visible:
             self.show_panel(page=page)
+
+    # ---- Güncelleme
+    def update_status_text(self) -> str:
+        if not REPO_URL:
+            return t("Bu sürümde güncelleme adresi tanımlı değil.")
+        return {
+            "idle": t("Henüz denetlenmedi."),
+            "checking": t("Denetleniyor…"),
+            "current": t("Tuckly güncel."),
+            "available": t("Yeni sürüm hazır: {0}").format((self.update_info or {}).get("version", "")),
+            "error": t("Güncelleme denetlenemedi. İnternet bağlantınızı kontrol edin."),
+            "downloading": t("İndiriliyor…"),
+        }[self.update_state]
+
+    def _update_changed(self):
+        if hasattr(self, "panel"):
+            self.panel.refresh_update()
+
+    def check_updates(self, silent=False):
+        if not REPO_URL or self.update_state in ("checking", "downloading"):
+            return
+        self._update_silent = silent
+        self.update_state = "checking"
+        self._update_changed()
+        self.updater.check()
+
+    def on_update_result(self, info):
+        self.config["update_checked"] = time.time()
+        self.save()
+        if info.get("error"):
+            self.update_state = "idle" if self._update_silent else "error"
+        elif is_newer(info["version"]):
+            self.update_state, self.update_info = "available", info
+            self.notify(t("Yeni sürüm hazır: {0}").format(info["version"]))
+        else:
+            self.update_state = "current"
+        self._update_changed()
+
+    def install_update(self):
+        """Yeni sürümün kurulum dosyasını indirip başlatır; kurulum dosyası yoksa sürüm sayfasını açar."""
+        info = self.update_info or {}
+        if info.get("asset"):
+            self.update_state = "downloading"
+            self._update_changed()
+            self.updater.download(info["asset"])
+        elif info.get("page"):
+            QDesktopServices.openUrl(QUrl(info["page"]))
+
+    def on_update_downloaded(self, path):
+        if not path:
+            self.update_state = "error"
+            self._update_changed()
+            return
+        os.startfile(path)  # kurulum programı Tuckly'yi kapatıp yenisini kurar
+        self.quit()
+
+    def set_update_check(self, on):
+        self.config["update_check"] = on
+        self.save()
+
+    # ---- Kaldırma
+    def uninstall(self):
+        """Tuckly'nin Windows'taki izlerini temizler, varsa kaldırma programını açar ve çıkar."""
+        self.close_popups()
+        if self.hide_assigned:
+            self.sync_hidden(False)
+        set_desktop_icons_visible(True)
+        if not _override:
+            register_context_menu(False)
+            self.set_autostart(False)
+        self.save()
+        uninstaller = Path(sys.executable).parent / "unins000.exe"
+        if getattr(sys, "frozen", False) and uninstaller.exists():
+            os.startfile(str(uninstaller))
+        else:
+            self.notify(t("Tuckly'nin Windows'taki kayıtları kaldırıldı. Uygulama klasörünü silebilirsiniz."))
+        self.quit()
 
     def start_tour(self):
         """Rehber turunu başlatır (Rehber ve Hakkında sayfalarından, ilk kurulumda da kendiliğinden)."""
@@ -779,6 +869,34 @@ class FencesApp:
         self.tray.hide()
 
 
+def run_cleanup(delete_settings=False):
+    """Kaldırma sırasında (`--temizle`) arayüz açmadan çalışır: gizlenen simgeleri geri getirir, sağ tık
+    menüsü ve başlangıç kayıtlarını siler. delete_settings: ayar klasörünü de siler."""
+    try:
+        config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        config = {}
+    marked = set(config.get("system_marked", []))
+    for d in config.get("fences", []):
+        if d.get("kind", "desktop") == "desktop":
+            for p in d.get("items", []):
+                set_file_hidden(p, False, p in marked)
+    if not _override:  # testler gerçek masaüstüne ve kayıt defterine dokunmasın
+        set_desktop_icons_visible(True)
+        register_context_menu(False)
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, FencesApp.RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+                winreg.DeleteValue(k, APP_ID)
+        except OSError:
+            pass
+    if delete_settings:
+        shutil.rmtree(DATA_DIR, ignore_errors=True)
+    elif config:
+        config["system_marked"] = []
+        CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def _log_exception(kind, v, tb):
     import traceback
     try:
@@ -810,6 +928,18 @@ def main():
         msg = b"new"
     elif "--ekle" in argv and argv.index("--ekle") + 1 < len(argv):
         msg = b"add\n" + argv[argv.index("--ekle") + 1].encode("utf-8")
+
+    # Kaldırma programı için: çalışan kopyayı kapat, Windows'taki izleri temizle ve çık
+    if "--temizle" in argv:
+        sock = QLocalSocket()
+        sock.connectToServer(SERVER_NAME)
+        if sock.waitForConnected(300):
+            sock.write(b"quit")
+            sock.flush()
+            sock.waitForBytesWritten(300)
+            time.sleep(2.5)  # çalışan kopya simgeleri geri getirip ayarlarını kaydetsin
+        run_cleanup(delete_settings="--ayarlari-sil" in argv)
+        return 0
 
     # Tek kopya: zaten çalışıyorsa isteği ona ilet ve çık
     sock = QLocalSocket()

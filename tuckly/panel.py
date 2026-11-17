@@ -673,15 +673,66 @@ class ControlPanel(QWidget):
                 self._row(P, t("Sürümler"), t("Yeni sürümler ve değişiklik notları."),
                           control=self._button(t("Aç"), link(REPO_URL + "/releases")), icon=""),
             ])
+        # Güncelleme
+        self.update_status = label(self.app.update_status_text(), "rowDesc", wrap=True)
+        self.update_btn = self._button(t("Denetle"), lambda: self.app.check_updates())
+        self.update_btn.setEnabled(bool(REPO_URL))
+        self.install_btn = self._button(t("İndir ve kur"), self.app.install_update, "primary")
+        buttons = QWidget()
+        bl = QHBoxLayout(buttons)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(6)
+        bl.addWidget(self.update_btn)
+        bl.addWidget(self.install_btn)
+        auto = Toggle(self.app.config.get("update_check", True))
+        auto.toggled.connect(self.app.set_update_check)
+        self._section(v, t("Güncelleme"), [
+            self._row(P, t("Güncellemeleri denetle"), None, control=buttons, below=self.update_status, icon="\uE777"),
+            self._row(P, t("Otomatik denetle"),
+                      t("Tuckly açılırken günde bir kez yeni sürüm olup olmadığına bakar."),
+                      control=auto, icon="\uE72C"),
+        ], first=not REPO_URL)
+        self.refresh_update()
+
         self._section(v, t("Uygulama"), [
             self._row(P, t("Rehber turu"), t("Kartları ve ayarları ekranda adım adım gösterir."),
                       control=self._button(t("Turu başlat"), self.app.start_tour), icon=""),
             self._row(P, t("Ayar klasörü"), str(DATA_DIR),
                       control=self._button(t("Aç"), lambda: os.startfile(str(DATA_DIR))), icon=""),
             self._row(P, t("Lisans"), t("Tuckly özgür bir yazılımdır; GPL-3.0 lisansıyla dağıtılır."), icon=""),
-        ], first=not REPO_URL)
+        ])
+
+        # Kaldırma iki adımlı: yanlışlıkla tıklanmasın
+        box = QWidget()
+        hb = QHBoxLayout(box)
+        hb.setContentsMargins(0, 0, 0, 0)
+        hb.setSpacing(6)
+        ask = named(QPushButton(t("Kaldır…")), "danger")
+        yes = named(QPushButton(t("Evet, kaldır")), "danger")
+        no = QPushButton(t("Vazgeç"))
+        for b in (ask, yes, no):
+            b.setCursor(Qt.PointingHandCursor)
+            hb.addWidget(b)
+        yes.hide()
+        no.hide()
+        ask.clicked.connect(lambda: (ask.hide(), yes.show(), no.show()))
+        no.clicked.connect(lambda: (yes.hide(), no.hide(), ask.show()))
+        yes.clicked.connect(lambda: QTimer.singleShot(0, self.app.uninstall))
+        self._section(v, t("Kaldırma"), [
+            self._row(P, t("Tuckly'yi kaldır"),
+                      t("Gizlenen simgeleri geri getirir, sağ tık menüsü ve başlangıç kayıtlarını siler, "
+                        "ardından kaldırma programını açar. Dosyalarınıza dokunulmaz."),
+                      control=box, icon="\uE74D"),
+        ])
         v.addStretch()
         return page
+
+    def refresh_update(self):
+        """Güncelleme satırını uygulamadaki son duruma göre yeniler."""
+        if hasattr(self, "update_status"):
+            self.update_status.setText(self.app.update_status_text())
+            self.install_btn.setVisible(self.app.update_state == "available")
+            self.update_btn.setEnabled(bool(REPO_URL) and self.app.update_state not in ("checking", "downloading"))
 
     # ---------------------------------------------------------------- Arama
     def _search_page(self):
