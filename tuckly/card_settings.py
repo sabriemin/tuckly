@@ -238,6 +238,16 @@ class CardSettings(QWidget):
         ])
         v.addWidget(self.rest_info)
 
+        # Son kullanılanlar kartı: açıklama ve öğe sayısı
+        count_box, self.recent_counts = segmented((("10", 10), ("20", 20), ("30", 30)), self.on_recent_count)
+        self.recent_info = make_group([
+            setting_row(t("Son kullanılanlar"),
+                        t("Windows'ta en son açtığınız dosyaları gösterir; liste kendiliğinden güncellenir. "
+                          "Karta öğe eklenmez ve dosyalara dokunulmaz."), icon="\uE81C"),
+            setting_row(t("Öğe sayısı"), below=count_box, icon="\uE8FD"),
+        ])
+        v.addWidget(self.recent_info)
+
         # Not kartı: açıklama
         save_box = QWidget()
         sv = QHBoxLayout(save_box)
@@ -449,6 +459,8 @@ class CardSettings(QWidget):
         self.folder_box.setVisible(kind == "folder")
         self.rest_info.setVisible(kind == "rest")
         self.note_info.setVisible(kind == "note")
+        self.recent_info.setVisible(kind == "recent")
+        (self.recent_counts.button(int(d.get("recent_count", 20))) or self.recent_counts.button(20)).setChecked(True)
         self.file_group.setVisible(kind != "note")
         self.note_group.setVisible(kind == "note")
         size = d.get("note_size", 0)
@@ -466,6 +478,7 @@ class CardSettings(QWidget):
         self.confirm_text.setText(
             t("Klasör ve içindekiler olduğu gibi kalır.") if kind == "folder" else
             t("Kartla birlikte içindeki not da silinir.") if kind == "note" else
+            t("Dosyalara dokunulmaz.") if kind == "recent" else
             t("İçindeki dosyalar masaüstünde olduğu gibi kalır."))
         self.folder.setText(str(f.folder) if f.folder else "")
         self._loading = False
@@ -489,6 +502,13 @@ class CardSettings(QWidget):
                 "to": self.time_to.time().toString("HH:mm"),
             }
             self.schedule_box.setVisible(self.schedule_on.isChecked())
+            self._changed()
+
+    def on_recent_count(self, count):
+        if self.fence:
+            self.fence.data["recent_count"] = count
+            self.fence._force_refresh = True
+            self.fence.refresh()
             self._changed()
 
     # ---- Not kartı

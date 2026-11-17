@@ -84,6 +84,27 @@ NOTE_SIZES = ((mark("Küçük"), 0), (mark("Orta"), 2), (mark("Büyük"), 4))
 DAYS = (mark("Pzt"), mark("Sal"), mark("Çar"), mark("Per"), mark("Cum"), mark("Cmt"), mark("Paz"))
 
 
+# Kart şablonları: (anahtar, ad, kartlar); kart: (ad, tür, kategoriler, simge, ad kuralları)
+TEMPLATES = (
+    ("work", mark("İş"), (
+        (mark("Belgeler"), "desktop", ("documents", "sheets", "slides"), "💼", ()),
+        (mark("Projeler"), "desktop", ("folders",), "📁", ()),
+        (mark("Yapılacaklar"), "note", (), "", ()))),
+    ("game", mark("Oyun"), (
+        (mark("Oyunlar"), "desktop", (), "🎮",
+         ("steam", "epic", "riot", "ubisoft", "battle.net", "gog", "xbox", "ea app", "rockstar")),
+        (mark("Medya"), "desktop", ("video", "audio"), "🎵", ()))),
+    ("design", mark("Tasarım"), (
+        (mark("Görseller"), "desktop", ("images",), "🎨", ()),
+        (mark("Arşivler"), "desktop", ("archives",), "📁", ()),
+        (mark("Fikirler"), "note", (), "", ()))),
+    ("student", mark("Öğrenci"), (
+        (mark("Dersler"), "desktop", ("documents",), "📚", ()),
+        (mark("Sunumlar"), "desktop", ("slides",), "💻", ()),
+        (mark("Yapılacaklar"), "note", (), "", ()))),
+)
+
+
 # Kart başlığına eklenebilen simgeler
 EMOJIS = ("📁", "🎮", "💼", "🎨", "🎵", "📷", "📚", "💻", "⭐")
 

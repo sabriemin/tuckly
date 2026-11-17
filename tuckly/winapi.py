@@ -371,3 +371,13 @@ def fullscreen_busy() -> bool:
         return state.value in (2, 3, 4)  # QUNS_BUSY, QUNS_RUNNING_D3D_FULL_SCREEN, QUNS_PRESENTATION_MODE
     except (OSError, AttributeError):
         return False
+
+
+def recent_dir() -> Path:
+    """Windows'un "son kullanılanlar" kısayollarını tuttuğu klasör (testte sahte bir klasör)."""
+    if _override:
+        d = Path(_override) / "son"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    import os
+    return Path(os.environ.get("APPDATA", str(Path.home()))) / "Microsoft" / "Windows" / "Recent"

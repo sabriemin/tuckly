@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QListWidget,
     QListWidgetItem,
     QPushButton,
@@ -30,7 +31,7 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from .i18n import LANGUAGES, current_language, mark, t
-from .config import APP_NAME, AUTHOR, AUTHOR_URL, DATA_DIR, DEFAULT_FONT, REPO_URL, resource
+from .config import APP_NAME, AUTHOR, AUTHOR_URL, DATA_DIR, DEFAULT_FONT, REPO_URL, TEMPLATES, resource
 from .winapi import set_class_icon, set_dark_titlebar
 from .theme import ACCENT_MODES, STYLES, appearance, dot_icon, make_app_icon, panel_look, panel_style, seed_of
 from .widgets import (
@@ -271,8 +272,20 @@ class ControlPanel(QWidget):
         self.card_list.currentRowChanged.connect(self.on_select)
         left.addWidget(self.card_list, 1)
         left.addWidget(self._button(t("+  Yeni kart"), self.on_new, "primary"))
-        left.addWidget(self._button(t("Klasörü kart olarak ekle…"), self.on_add_folder))
-        left.addWidget(self._button(t("Not kartı ekle"), self.on_add_note))
+        # Diğer kart türleri ve hazır şablonlar tek bir menüde
+        more = QPushButton(t("Başka kart ekle"))
+        more.setCursor(Qt.PointingHandCursor)
+        menu = QMenu(more)
+        menu.addAction(t("Klasör kartı…"), self.on_add_folder)
+        menu.addAction(t("Not kartı"), self.on_add_note)
+        menu.addAction(t("Son kullanılanlar kartı"), lambda: self.reload_cards(select=self.app.new_fence(kind="recent")))
+        menu.addSeparator()
+        templates = menu.addMenu(t("Şablonlar"))
+        for key, title, cards in TEMPLATES:
+            names = ", ".join(t(c[0]) for c in cards)
+            templates.addAction(f"{t(title)}  —  {names}", lambda k=key: QTimer.singleShot(0, lambda: self.app.apply_template(k)))
+        more.setMenu(menu)
+        left.addWidget(more)
         lw = QWidget()
         lw.setLayout(left)
         lw.setFixedWidth(244)

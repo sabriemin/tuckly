@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QFileInfo, QFileSystemWatcher, QTimer, QUrl, Qt
+from PySide6.QtCore import QFileInfo, QFileSystemWatcher, QPoint, QTimer, QUrl, Qt
 from PySide6.QtGui import QColor, QCursor, QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileIconProvider, QMenu, QSystemTrayIcon
@@ -31,6 +31,7 @@ from .config import (
     LOG_FILE,
     PARTIAL_EXT,
     SERVER_NAME,
+    TEMPLATES,
     TOGGLE_ON,
     UNDO_FILE,
     _override,
@@ -601,11 +602,11 @@ class FencesApp:
         self.panel.activateWindow()
 
     # ---- Kart yönetimi
-    def new_fence(self, name=None, folder=None, pos=None, note=False):
+    def new_fence(self, name=None, folder=None, pos=None, note=False, kind=None):
         if self.cards_hidden:  # yeni kart görünsün
             self.set_cards_hidden(False)
         if name is None:
-            base, i = t("Not") if note else t("Yeni Kart"), 2
+            base, i = t("Not") if note else t("Son kullanılanlar") if kind == "recent" else t("Yeni Kart"), 2
             names = {f.data["name"] for f in self.fences}
             name = base
             while name in names:
@@ -619,7 +620,7 @@ class FencesApp:
             y = max(geo.top(), min(pos.y() - 20, geo.bottom() - 240))
         else:
             x, y = geo.center().x() - 170 + off, geo.center().y() - 115 + off
-        kind = "note" if note else "folder" if folder else "desktop"
+        kind = kind or ("note" if note else "folder" if folder else "desktop")
         data = self._fence_data(name, [], snap(x), snap(y), kind=kind, folder=folder)
         # "Diğer" kartı listenin sonunda kalsın
         idx = self.fences.index(self.rest) if self.rest in self.fences else len(self.fences)
@@ -629,6 +630,28 @@ class FencesApp:
         f.show()
         self.save()
         return f
+
+    def apply_template(self, key):
+        """Hazır bir kart setini ekler; var olan kartlara ve dosyalara dokunmaz."""
+        template = next((tpl for tpl in TEMPLATES if tpl[0] == key), None)
+        if not template:
+            return []
+        geo = QGuiApplication.primaryScreen().availableGeometry()
+        made = []
+        for i, (name, kind, categories, emoji, words) in enumerate(template[2]):
+            col, row = divmod(i, max(1, (geo.height() - 60) // 250))
+            pos = QPoint(geo.left() + 90 + col * 360, geo.top() + 80 + row * 250)
+            fence = self.new_fence(name=t(name), pos=pos, note=kind == "note")
+            fence.data["categories"] = list(categories)
+            fence.data["name_rules"] = list(words)
+            if emoji:
+                fence.data["emoji"] = emoji
+            fence.apply_settings()
+            made.append(fence)
+        self.save()
+        self.panel.reload_cards(select=made[0] if made else None)
+        self.notify(t('“{0}” şablonu eklendi: {1} kart.').format(t(template[1]), len(made)))
+        return made
 
     def remove_fence(self, fence):
         if fence is None or fence not in self.fences or fence.kind == "rest":

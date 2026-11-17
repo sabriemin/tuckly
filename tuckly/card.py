@@ -54,6 +54,7 @@ from .winapi import (
     desktop_dir,
     desktop_entries,
     on_desktop,
+    recent_dir,
     recycle,
     set_acrylic,
     set_window_region,
@@ -271,7 +272,7 @@ class FenceList(QListWidget):
         return Qt.LinkAction if e.possibleActions() & Qt.LinkAction else Qt.CopyAction
 
     def dragEnterEvent(self, e):
-        if not e.mimeData().hasUrls() or self.fence.data.get("lock_content") or self.fence.kind == "note":
+        if not e.mimeData().hasUrls() or self.fence.read_only() or self.fence.kind == "note":
             e.ignore()
             return
         self.fence.begin_peek()  # üzerine gelince açılan kart sürüklemede de açılsın
@@ -288,7 +289,7 @@ class FenceList(QListWidget):
 
     def dropEvent(self, e):
         self.fence.set_drop_highlight(False)
-        if not e.mimeData().hasUrls() or self.fence.data.get("lock_content") or self.fence.kind == "note":
+        if not e.mimeData().hasUrls() or self.fence.read_only() or self.fence.kind == "note":
             e.ignore()
             return
         if e.source() is self:
@@ -613,6 +614,7 @@ class FenceWindow(QWidget):
         self.folder = Path(data["folder"]) if self.kind == "folder" else None
         if self.folder:
             self.folder.mkdir(parents=True, exist_ok=True)
+        self.cwd = self.folder  # klasör kartında şu an gezilen klasör (kartın kendi klasörü ya da bir alt klasörü)
         self.icons = QFileIconProvider()
         self._loading = False
         self._style_key = None
@@ -651,6 +653,26 @@ class FenceWindow(QWidget):
         self.tabs_bar.hide()
         self._tabs = []  # (düğme, kart)
         lay.addWidget(self.tabs_bar)
+        # Klasör kartında alt klasöre girilince: geri düğmesi, yol ve "Gezgin'de aç"
+        self.path_bar = named(QWidget(), "pathBar")
+        pb = QHBoxLayout(self.path_bar)
+        pb.setContentsMargins(10, 0, 10, 6)
+        pb.setSpacing(6)
+        back = QToolButton(text="\uE72B")
+        back.setToolTip(t("Üst klasöre dön"))
+        back.setCursor(Qt.PointingHandCursor)
+        back.clicked.connect(self.go_up)
+        self.path_text = named(QLabel(), "pathText")
+        self.path_text.setMinimumWidth(10)
+        explore = QToolButton(text="\uE838")
+        explore.setToolTip(t("Gezgin'de aç"))
+        explore.setCursor(Qt.PointingHandCursor)
+        explore.clicked.connect(lambda: self.cwd and os.startfile(str(self.cwd)))
+        pb.addWidget(back)
+        pb.addWidget(self.path_text, 1)
+        pb.addWidget(explore)
+        self.path_bar.hide()
+        lay.addWidget(self.path_bar)
 
         self.stack = QStackedWidget()
         page = named(QWidget(), "page")
@@ -704,12 +726,13 @@ class FenceWindow(QWidget):
         self.grip = QSizeGrip(self.frame)
         self.grip.setStyleSheet("QSizeGrip { background: transparent; width: 16px; height: 16px; }")
 
-        self.list.itemDoubleClicked.connect(lambda it: self.open_path(it.data(Qt.UserRole)))
+        self.list.itemDoubleClicked.connect(self.on_item_open)
         self.list.customContextMenuRequested.connect(self.on_list_menu)
         self.list.itemChanged.connect(self.on_item_renamed)
 
         # Masaüstü kartları uygulamanın masaüstü izleyicisiyle yenilenir; klasör kartı kendi klasörünü izler
-        self.watcher = QFileSystemWatcher([str(self.folder)] if self.folder else [])
+        self.watcher = QFileSystemWatcher([str(self.folder)] if self.folder else
+                                          [str(recent_dir())] if self.kind == "recent" else [])
         self._refresh_timer = QTimer(self, singleShot=True, interval=250, timeout=self.refresh)
         self.watcher.directoryChanged.connect(lambda _: self._refresh_timer.start())
         self._save_timer = QTimer(self, singleShot=True, interval=600, timeout=self.store_geometry)
@@ -891,7 +914,7 @@ class FenceWindow(QWidget):
         # Kilitler: genel kilit konumu ve boyutu, kartın kendi kilitleri ayrı ayrı
         self.grip.setVisible(not self.app.locked and not d.get("lock_size") and not self.is_folded())
         self.title.fold.setVisible(not d.get("rollup"))  # açılır kartta daraltma düğmesine gerek yok
-        locked = bool(d.get("lock_content"))
+        locked = self.read_only()
         self.note.setReadOnly(locked)
         self.note_bar.setVisible(not locked)
         if self.kind == "note":
@@ -922,6 +945,7 @@ class FenceWindow(QWidget):
         self.title.fold.setText("\uE76C" if folded else "\uE70D")
         self.stack.setVisible(not folded)
         self.tabs_bar.setVisible(not folded and len(self._tabs) > 1)
+        self.path_bar.setVisible(not folded and self.in_subfolder())
         self.frame.layout().setContentsMargins(0, 0, 0, 0 if folded else 6)
         if folded:
             self.setFixedHeight(TITLE_H + 2)
@@ -1062,24 +1086,86 @@ class FenceWindow(QWidget):
             self.popup.dismiss()
         self.title.gear.setChecked(on)
 
+    def read_only(self) -> bool:
+        """Karta öğe eklenip çıkarılamaz mı? İçerik kilidi ya da kendiliğinden dolan kart türleri."""
+        return bool(self.data.get("lock_content")) or self.kind == "recent"
+
+    # ---- Klasör kartında gezinme
+    def in_subfolder(self) -> bool:
+        return self.kind == "folder" and self.cwd is not None and norm(self.cwd) != norm(self.folder)
+
+    def navigate(self, path):
+        """Klasör kartında başka bir klasörü (kartın klasörünün içinde) gösterir."""
+        path = Path(path)
+        if self.kind != "folder" or not path.is_dir():
+            return
+        self.cwd = path
+        if self.watcher.directories():
+            self.watcher.removePaths(self.watcher.directories())
+        self.watcher.addPath(str(path))
+        self.title.finish_search(True)
+        self._force_refresh = True
+        self.refresh()
+        self.update_path_bar()
+
+    def go_up(self):
+        if self.in_subfolder():
+            self.navigate(self.cwd.parent)
+
+    def update_path_bar(self):
+        sub = self.in_subfolder()
+        if sub:
+            try:
+                rel = str(self.cwd.relative_to(self.folder)).replace(os.sep, "  ›  ")
+            except ValueError:
+                rel = self.cwd.name
+            self.path_text.setText(self.path_text.fontMetrics().elidedText(rel, Qt.ElideLeft, max(40, self.width() - 100)))
+            self.path_text.setToolTip(str(self.cwd))
+        self.path_bar.setVisible(sub and not self.is_folded())
+
+    def on_item_open(self, item):
+        path = item.data(Qt.UserRole)
+        # Klasör kartında alt klasöre çift tıklamak kartın içinde gezer; Ctrl basılıyken Gezgin'de açar
+        if (self.kind == "folder" and Path(path).is_dir()
+                and not QGuiApplication.keyboardModifiers() & Qt.ControlModifier):
+            self.navigate(path)
+        else:
+            self.open_path(path)
+
     def set_folder(self, path):
         if self.watcher.directories():
             self.watcher.removePaths(self.watcher.directories())
         self.kind = self.data["kind"] = "folder"
-        self.folder = Path(path)
+        self.folder = self.cwd = Path(path)
         self.data["folder"] = str(self.folder)
         self.folder.mkdir(parents=True, exist_ok=True)
         self.watcher.addPath(str(self.folder))
         self.refresh()
+        self.update_path_bar()
 
     # ---- İçerik
     def entries(self):
         if self.kind == "folder":
+            if not self.cwd.is_dir():  # gezilen alt klasör silinmiş: kartın klasörüne dön
+                self.cwd = self.folder
+                QTimer.singleShot(0, self.update_path_bar)
             try:
-                items = [p for p in self.folder.iterdir()
+                items = [p for p in self.cwd.iterdir()
                          if p.name.lower() not in SKIP_NAMES and not is_hidden(p)]
             except OSError:
                 items = []
+        elif self.kind == "recent":
+            # Windows'un son kullanılanlar kısayolları, en yeni en başta
+            def mtime(p):
+                try:
+                    return p.stat().st_mtime
+                except OSError:
+                    return 0
+            try:
+                links = sorted(recent_dir().glob("*.lnk"), key=mtime, reverse=True)
+            except OSError:
+                links = []
+            return links[:int(self.data.get("recent_count", 20))]
         elif self.kind == "rest":
             taken = self.app.assigned_keys()
             items = [p for p in desktop_entries() if norm(p) not in taken]
@@ -1174,11 +1260,11 @@ class FenceWindow(QWidget):
     def receive(self, paths, copy=False):
         """Bırakılan öğeler: masaüstü kartı yalnızca atar (dışarıdan geleni önce masaüstüne alır),
         klasör kartı ise klasöre taşır/kopyalar."""
-        if self.data.get("lock_content"):
+        if self.read_only():
             self.app.notify(t('“{0}” kartının içeriği kilitli.').format(self.data['name']))
             return
         errors = []
-        target = self.folder if self.kind == "folder" else desktop_dir()
+        target = self.cwd if self.kind == "folder" else desktop_dir()
         for raw in paths:
             if not raw:
                 continue
@@ -1264,7 +1350,9 @@ class FenceWindow(QWidget):
         if it is None:
             m.addAction(t("Kart ayarları"), lambda: self.show_settings(True))
             if self.folder:
-                m.addAction(t("Klasörü aç"), lambda: os.startfile(str(self.folder)))
+                m.addAction(t("Klasörü aç"), lambda: os.startfile(str(self.cwd)))
+                if self.in_subfolder():
+                    m.addAction(t("Üst klasöre dön"), self.go_up)
             m.addAction(t("Kontrol paneli"), lambda: self.app.show_panel(self))
             m.exec(gpos)
             return
@@ -1276,9 +1364,9 @@ class FenceWindow(QWidget):
         if len(paths) == 1:
             m.addAction(t("Dosya konumunu göster"),
                         lambda: subprocess.Popen(["explorer", "/select,", str(paths[0])]))
-            if not self.data.get("lock_content"):
+            if not self.read_only():
                 m.addAction(t("Yeniden adlandır"), lambda: self.list.editItem(it))
-        if self.data.get("lock_content"):  # içerik kilitli: yalnızca açma ve gösterme
+        if self.read_only():  # içerik kilitli: yalnızca açma ve gösterme
             m.exec(gpos)
             return
         m.addSeparator()

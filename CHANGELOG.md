@@ -10,6 +10,9 @@
 - Quick launcher (Ctrl+Alt+F): type to find and open any item in any card, or jump to a note
 - Optional: hide all cards while a full-screen game, presentation or video is running
 - Card schedules: show a card only on chosen days and hours
+- Folder cards can be browsed: double-click a subfolder to enter it, with a back button and path bar
+- Recent files card that lists the files most recently opened in Windows
+- Card templates (Work, Gaming, Design, Student) that add a ready-made set of cards
 - Card settings have a separate Lock tab again; Behavior holds open-on-hover, schedule and tabs
 
 ## 0.2.0
