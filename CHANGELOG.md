@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Note cards have their own settings: text size, sticky-note paper colors and word wrap
+- Notes support to-do items with a done/total counter in the title, bullets, headings, bold, italic and strikethrough
+- Web addresses in notes are highlighted and open with Ctrl+click
+- Note reminders: a Windows notification at the chosen time brings the note to the front
+- Copy a note to the clipboard or save it as a .txt or .md file
+
 ## 0.2.0
 
 - Double-click an empty spot on the desktop, or press Ctrl+Alt+H, to hide and show all cards

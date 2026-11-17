@@ -127,6 +127,10 @@ class FencesApp:
         self._wallpaper = wallpaper_key()
         self._wallpaper_timer = QTimer(interval=20000, timeout=self.check_wallpaper)
         self._wallpaper_timer.start()
+        # Not hatırlatıcıları; Tuckly kapalıyken zamanı geçenler açılışta bildirilir
+        self._remind_timer = QTimer(interval=15000, timeout=self.check_reminders)
+        self._remind_timer.start()
+        QTimer.singleShot(4000, self.check_reminders)
 
         # Monitör düzeni (takılı ekranlar ve yerleri) değişince kartlar o düzendeki yerlerine döner
         self._screen_sig = self.screen_signature()
@@ -998,6 +1002,22 @@ class FencesApp:
             del layouts[index]
             self.save()
             self.panel.reload_layouts()
+
+    def check_reminders(self):
+        now = time.time()
+        for fence in list(self.fences):
+            when = fence.data.get("remind")
+            if fence.kind != "note" or not when or when > now:
+                continue
+            fence.data["remind"] = None
+            first = next((ln.strip() for ln in fence.note.toPlainText().splitlines() if ln.strip()), "")
+            # Not görünsün: kartlar gizliyse geri getir, sekme grubundaysa öne al
+            if self.cards_hidden:
+                self.set_cards_hidden(False)
+            if fence.data.get("group") and not fence.data.get("tab_active"):
+                self.activate_tab(fence)
+            self.fence_changed(fence)
+            self.notify(t("Hatırlatıcı — {0}").format(fence.data["name"]) + (": " + first[:80] if first else ""))
 
     def check_wallpaper(self):
         if appearance(self.config).get("accent") != "wallpaper":

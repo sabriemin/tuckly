@@ -306,9 +306,15 @@ QPushButton#tab {{ padding: 3px 8px; border: none; border-radius: 8px; backgroun
                   color: rgba({fg},200); {look.font_css(-0.5, 500)} }}
 QPushButton#tab:hover {{ background: rgba({fg},44); }}
 QPushButton#tab:checked {{ background: {look.accent.name()}; color: {look.on_accent}; }}
-QPlainTextEdit#note {{ background: transparent; border: none; color: rgb({fg}); padding: 2px 10px 6px 12px;
+QTextEdit#note {{ background: transparent; border: none; color: rgb({fg}); padding: 2px 10px 6px 12px;
                        selection-background-color: {look.accent.name()}; selection-color: {look.on_accent};
                        {look.font_css(1, 400)} }}
+#noteBar {{ background: transparent; }}
+#noteBar QToolButton {{ color: rgba({fg},170); background: transparent; border: none; border-radius: 6px;
+                        font: 9pt "Segoe MDL2 Assets"; min-width: 24px; max-width: 24px;
+                        min-height: 22px; max-height: 22px; }}
+#noteBar QToolButton:hover {{ background: rgba({fg},40); color: rgb({fg}); }}
+#noteBar QToolButton:checked {{ background: rgba({fg},60); color: rgb({fg}); }}
 """
 
 

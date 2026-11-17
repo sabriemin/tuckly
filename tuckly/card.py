@@ -31,7 +31,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMenu,
-    QPlainTextEdit,
     QPushButton,
     QSizeGrip,
     QStackedWidget,
@@ -67,6 +66,10 @@ from .notifications import matches
 
 BADGE_ROLE = Qt.UserRole + 1  # öğenin bildirim sayısı
 
+
+from dataclasses import replace
+
+from .note import NoteEdit
 
 class TileDelegate(QStyledItemDelegate):
     def __init__(self, view):
@@ -614,6 +617,7 @@ class FenceWindow(QWidget):
         self._loading = False
         self._style_key = None
         self.look = None
+        self.popup_look = None
         self._blur = False
         self._suspended = False      # taşıma/boyutlandırma sırasında bulanıklık geçici olarak kapalı
         self._force_refresh = False
@@ -659,13 +663,40 @@ class FenceWindow(QWidget):
         pl.addWidget(self.empty, 1)
         self.stack.addWidget(page)
         # Not kartı: dosya listesi yerine serbest metin; yazılanlar ayarlarla birlikte saklanır
-        self.note = named(QPlainTextEdit(), "note")
-        self.note.setPlaceholderText(t("Buraya not yazın"))
-        self.note.setFrameShape(QFrame.NoFrame)
-        self.note.setPlainText(data.get("text", ""))
+        self.note = NoteEdit()
+        self.note.load(data)
         self._note_timer = QTimer(self, singleShot=True, interval=600, timeout=self.store_note)
         self.note.textChanged.connect(self._note_timer.start)
-        self.stack.addWidget(self.note)
+        self.note.textChanged.connect(self.update_note_count)
+        note_page = named(QWidget(), "page")
+        nl = QVBoxLayout(note_page)
+        nl.setContentsMargins(0, 0, 0, 0)
+        nl.setSpacing(0)
+        nl.addWidget(self.note, 1)
+        # Notun altındaki araç çubuğu
+        self.note_bar = named(QWidget(), "noteBar")
+        bar = QHBoxLayout(self.note_bar)
+        bar.setContentsMargins(10, 2, 26, 0)
+        bar.setSpacing(4)
+        self.note_tools = {}
+        for key, glyph, tip, slot in (
+                ("task", "\uE73A", t("Yapılacak maddesi"), self.note.toggle_task),
+                ("bullet", "\uE8FD", t("Madde işareti"), self.note.toggle_bullet),
+                ("heading", "\uE8E9", t("Başlık"), self.note.toggle_heading),
+                ("bold", "\uE8DD", t("Kalın (Ctrl+B)"), self.note.toggle_bold),
+                ("italic", "\uE8DB", t("İtalik (Ctrl+I)"), self.note.toggle_italic),
+                ("strike", "\uEDE0", t("Üstü çizili"), self.note.toggle_strike),
+                ("remind", "\uE823", t("Hatırlatıcı"), self.show_remind_menu)):
+            b = QToolButton(text=glyph)
+            b.setToolTip(tip)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setFocusPolicy(Qt.NoFocus)  # tıklayınca yazı alanı odağını kaybetmesin
+            b.clicked.connect(slot)
+            bar.addWidget(b)
+            self.note_tools[key] = b
+        bar.addStretch()
+        nl.addWidget(self.note_bar)
+        self.stack.addWidget(note_page)
         if self.kind == "note":
             self.stack.setCurrentIndex(1)
         lay.addWidget(self.stack, 1)
@@ -837,16 +868,22 @@ class FenceWindow(QWidget):
     def apply_settings(self):
         d = self.data
         ap = appearance(self.app.config)
-        key = (repr(sorted(ap.items(), key=lambda kv: kv[0])), d.get("theme"), d.get("opacity"))
+        paper = d.get("paper") if self.kind == "note" else None
+        key = (repr(sorted(ap.items(), key=lambda kv: kv[0])), d.get("theme"), d.get("opacity"), paper)
         if key != self._style_key:
             self._style_key = key
-            self.look = look = make_look(ap, d.get("theme"), d.get("opacity"))
+            look = make_look(ap, d.get("theme"), d.get("opacity"))
+            self.popup_look = look  # ayar penceresi kâğıt rengine bürünmez
+            if paper:  # yapışkan not: düz renkli kâğıt, koyu yazı; genel tema ve saydamlık uygulanmaz
+                look = replace(look, style="flat", light=True, bg=QColor(paper), opacity=100,
+                               accent=QColor(paper).darker(260))
+            self.look = look
             # Bulanıklık katmanı renksiz tutulur; renk ve opaklık stil sayfasında boyanır
             self._blur = blur = set_acrylic(self, look.bg, 6, enable=look.wants_blur) and look.wants_blur
             self._apply_region()
             self.setStyleSheet(card_style(look, blur))
             if self.popup:
-                self.popup.apply_look(look)
+                self.popup.apply_look(self.popup_look)
             self.list.delegate.look = look
             self.list.viewport().update()
         self.list.apply_icon_size(d.get("icon_size", 36), self.look)
@@ -856,6 +893,16 @@ class FenceWindow(QWidget):
         self.title.fold.setVisible(not d.get("rollup"))  # açılır kartta daraltma düğmesine gerek yok
         locked = bool(d.get("lock_content"))
         self.note.setReadOnly(locked)
+        self.note_bar.setVisible(not locked)
+        if self.kind == "note":
+            self.note.set_accent(self.look.accent)
+            self.note.setStyleSheet(f"font-size: {self.look.font_size + 1 + d.get('note_size', 0):g}pt;")
+            self.note.setLineWrapMode(NoteEdit.WidgetWidth if d.get("note_wrap", True) else NoteEdit.NoWrap)
+            remind = self.note_tools["remind"]
+            remind.setCheckable(True)
+            remind.setChecked(bool(d.get("remind")))
+            remind.setToolTip(t("Hatırlatıcı: {0}").format(time.strftime("%d.%m.%Y %H:%M", time.localtime(d["remind"])))
+                              if d.get("remind") else t("Hatırlatıcı"))
         self.list.setDragEnabled(not locked)
         self.list.setEditTriggers(QAbstractItemView.NoEditTriggers if locked else QAbstractItemView.EditKeyPressed)
         self.title.lock.setVisible(bool(d.get("lock_pos") or d.get("lock_size") or locked))
@@ -952,9 +999,40 @@ class FenceWindow(QWidget):
             b.setText(b.fontMetrics().elidedText(name, Qt.ElideRight, room))
 
     def store_note(self):
-        if self.kind == "note" and self.data.get("text", "") != self.note.toPlainText():
-            self.data["text"] = self.note.toPlainText()
+        if self.kind != "note":
+            return
+        md = self.note.markdown()
+        if self.data.get("md") != md:
+            self.data["md"] = md
+            self.data["text"] = self.note.toPlainText()  # düz metin: arama ve dışa aktarma için
             self.app.save()
+
+    # ---- Hatırlatıcı
+    def show_remind_menu(self):
+        now = time.time()
+        tomorrow = time.localtime(now + 86400)
+        nine = time.mktime((tomorrow.tm_year, tomorrow.tm_mon, tomorrow.tm_mday, 9, 0, 0, 0, 0, -1))
+        m = QMenu(self)
+        m.addAction(t("15 dakika sonra"), lambda: self.set_reminder(now + 15 * 60))
+        m.addAction(t("1 saat sonra"), lambda: self.set_reminder(now + 3600))
+        m.addAction(t("Yarın 09:00"), lambda: self.set_reminder(nine))
+        m.addAction(t("Tarih ve saat seç…"), lambda: (self.show_settings(True), self.settings.set_tab(1)))
+        if self.data.get("remind"):
+            m.addSeparator()
+            m.addAction(t("Hatırlatıcıyı kaldır"), lambda: self.set_reminder(None))
+        button = self.note_tools["remind"]
+        m.exec(button.mapToGlobal(QPoint(0, -m.sizeHint().height() - 4)))
+
+    def set_reminder(self, when):
+        self.data["remind"] = int(when) if when else None
+        self.app.fence_changed(self)
+
+    def update_note_count(self):
+        """Not kartının başlığında tamamlanan/toplam yapılacak sayısını gösterir."""
+        if self.kind == "note":
+            done, total = self.note.counts()
+            self.title.count.setText(f"{done}/{total}" if total else "")
+            self.title.fit()
 
     def set_collapsed(self, collapsed: bool, save=True):
         self.data["collapsed"] = collapsed
@@ -974,7 +1052,7 @@ class FenceWindow(QWidget):
                 self.popup = SettingsPopup(self)
                 self.settings = self.popup.settings
                 self.settings.bind(self)
-                self.popup.apply_look(self.look)
+                self.popup.apply_look(self.popup_look)
             if time.monotonic() - self.popup.closed_at < 0.3:
                 on = False  # pencereyi kapatan tıklamanın kendisi: yeniden açma
             else:
@@ -1089,6 +1167,7 @@ class FenceWindow(QWidget):
         self._loading = False
         self.list.reset_animation()
         self.apply_badges()
+        self.update_note_count()
         if hasattr(self.app, "panel"):
             self.app.panel.update_names()
 

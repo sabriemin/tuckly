@@ -6,10 +6,12 @@ klasör) ve Kilit (kilitler ve kartı kaldırma). Sekmeler sayesinde form kaydı
 
 import os
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QDateTime, QTimer, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QApplication,
+    QDateTimeEdit,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
@@ -22,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from .i18n import t
-from .config import CATEGORIES, EMOJIS, ICON_SIZES, SORT_MODES
+from .config import CATEGORIES, EMOJIS, ICON_SIZES, NOTE_SIZES, PAPERS, SORT_MODES
 from .theme import appearance
 from .widgets import SwatchRow, Toggle, label, make_group, named, segmented, setting_row
 
@@ -117,11 +119,46 @@ class CardSettings(QWidget):
                         below=self.colors, value=self.theme_value, icon=""),
             setting_row(t("Opaklık"), t("Bu karta özel saydamlık."), control=self.op_general,
                         below=self.opacity, value=self.opacity_value, icon=""),
+        ]
+        v.addWidget(make_group(rows))
+        # Dosya kartlarına özel
+        self.file_group = make_group([
             setting_row(t("Simge boyutu"), below=sizes_box, icon=""),
             setting_row(t("Sıralama"), t("Serbest: simgeleri kart içinde sürükleyerek dizersin."),
                         below=sort_box, icon=""),
-        ]
-        v.addWidget(make_group(rows))
+        ])
+        v.addWidget(self.file_group)
+        # Not kartına özel: yazı boyutu, kâğıt rengi, satır kaydırma
+        note_size_box, self.note_sizes = segmented(NOTE_SIZES, self.on_note_size)
+        paper_box = QWidget()
+        pr = QHBoxLayout(paper_box)
+        pr.setContentsMargins(0, 0, 0, 0)
+        pr.setSpacing(6)
+        self.papers = QButtonGroup(self)
+        self._paper_values = ("",) + PAPERS
+        for i, value in enumerate(self._paper_values):
+            b = QPushButton("–" if not value else "")
+            b.setCheckable(True)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setFixedSize(26, 26)
+            b.setToolTip(t("Kart rengi") if not value else t("Kâğıt rengi"))
+            if value:
+                b.setStyleSheet(f"QPushButton {{ background: {value}; border: 2px solid transparent; border-radius: 13px; }}"
+                                "QPushButton:checked { border-color: #0a84ff; }")
+            else:
+                b.setObjectName("emoji")
+            self.papers.addButton(b, i)
+            pr.addWidget(b)
+        pr.addStretch()
+        self.papers.idClicked.connect(self.on_paper)
+        self.note_wrap = Toggle(True)
+        self.note_wrap.toggled.connect(self.on_note_wrap)
+        self.note_group = make_group([
+            setting_row(t("Yazı boyutu"), below=note_size_box, icon="\uE8E9"),
+            setting_row(t("Kâğıt rengi"), t("Yapışkan not görünümü: düz renkli kâğıt ve koyu yazı."),
+                        below=paper_box, icon="\uE790"),
+        ])
+        v.addWidget(self.note_group)
         return page
 
     # ---------------------------------------------------------------- İçerik
@@ -201,9 +238,48 @@ class CardSettings(QWidget):
         v.addWidget(self.rest_info)
 
         # Not kartı: açıklama
+        save_box = QWidget()
+        sv = QHBoxLayout(save_box)
+        sv.setContentsMargins(0, 0, 0, 0)
+        sv.setSpacing(6)
+        for ext in ("txt", "md"):
+            b = QPushButton("." + ext)
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda _=False, e=ext: self.on_note_export(e))
+            sv.addWidget(b)
+        # Hatırlatıcı: tarih ve saat + kur / kaldır
+        remind_box = QWidget()
+        rm = QHBoxLayout(remind_box)
+        rm.setContentsMargins(0, 0, 0, 0)
+        rm.setSpacing(6)
+        self.remind_at = QDateTimeEdit()
+        self.remind_at.setDisplayFormat("dd.MM.yyyy  HH:mm")
+        rm.addWidget(self.remind_at, 1)
+        self.remind_set = named(QPushButton(t("Kur")), "primary")
+        self.remind_set.setCursor(Qt.PointingHandCursor)
+        self.remind_set.clicked.connect(self.on_remind_set)
+        rm.addWidget(self.remind_set)
+        self.remind_clear = QPushButton(t("Kaldır"))
+        self.remind_clear.setCursor(Qt.PointingHandCursor)
+        self.remind_clear.clicked.connect(self.on_remind_clear)
+        rm.addWidget(self.remind_clear)
+        self.remind_value = label("", "rowValue")
+        copy = QPushButton(t("Kopyala"))
+        copy.setCursor(Qt.PointingHandCursor)
+        copy.clicked.connect(self.on_note_copy)
         self.note_info = make_group([
             setting_row(t("Not kartı"),
-                        t("Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir."), icon="\uE70B"),
+                        t("Kartın içine tıklayıp yazın; yazdıklarınız kendiliğinden kaydedilir. Alttaki düğmeler "
+                          "satırı yapılacak maddesine ya da madde işaretine çevirir; Ctrl+tıklama bağlantıyı açar."),
+                        icon="\uE70B"),
+            setting_row(t("Satır kaydırma"), t("Uzun satırlar kartın genişliğine göre alt satıra geçer."),
+                        control=self.note_wrap, icon="\uE751"),
+            setting_row(t("Hatırlatıcı"), t("Zamanı gelince Windows bildirimi çıkar ve not öne gelir."),
+                        below=remind_box, value=self.remind_value, icon="\uE823"),
+            setting_row(t("Panoya kopyala"), t("Notun tamamını düz metin olarak kopyalar."), control=copy,
+                        icon="\uE8C8"),
+            setting_row(t("Dosyaya kaydet"), t("Notu metin ya da Markdown dosyası olarak kaydeder."),
+                        control=save_box, icon="\uE74E"),
         ])
         v.addWidget(self.note_info)
         return page
@@ -317,6 +393,19 @@ class CardSettings(QWidget):
         self.folder_box.setVisible(kind == "folder")
         self.rest_info.setVisible(kind == "rest")
         self.note_info.setVisible(kind == "note")
+        self.file_group.setVisible(kind != "note")
+        self.note_group.setVisible(kind == "note")
+        size = d.get("note_size", 0)
+        (self.note_sizes.button(size) or self.note_sizes.button(0)).setChecked(True)
+        paper = d.get("paper") or ""
+        self.papers.button(self._paper_values.index(paper) if paper in self._paper_values else 0).setChecked(True)
+        self.note_wrap.setChecked(bool(d.get("note_wrap", True)))
+        remind = d.get("remind")
+        if force or not self.remind_at.hasFocus():
+            self.remind_at.setDateTime(QDateTime.fromSecsSinceEpoch(int(remind)) if remind
+                                       else QDateTime.currentDateTime().addSecs(3600))
+        self.remind_value.setText(t("Kurulu") if remind else t("Yok"))
+        self.remind_clear.setVisible(bool(remind))
         self.remove_group.setVisible(kind != "rest")
         self.confirm_text.setText(
             t("Klasör ve içindekiler olduğu gibi kalır.") if kind == "folder" else
@@ -334,6 +423,52 @@ class CardSettings(QWidget):
         if self.fence and text.strip():
             self.fence.data["name"] = text.strip()
             self._changed()
+
+    # ---- Not kartı
+    def on_note_size(self, delta):
+        if self.fence:
+            self.fence.data["note_size"] = delta
+            self._changed()
+
+    def on_paper(self, index):
+        if self.fence:
+            self.fence.data["paper"] = self._paper_values[index] or None
+            self._changed()
+
+    def on_note_wrap(self, on):
+        if self.fence and not self._loading:
+            self.fence.data["note_wrap"] = on
+            self._changed()
+
+    def on_remind_set(self):
+        if self.fence:
+            self.fence.set_reminder(self.remind_at.dateTime().toSecsSinceEpoch())
+            self.load(force=True)
+
+    def on_remind_clear(self):
+        if self.fence:
+            self.fence.set_reminder(None)
+            self.load(force=True)
+
+    def on_note_copy(self):
+        if self.fence:
+            QApplication.clipboard().setText(self.fence.note.toPlainText())
+            self.app.notify(t("Not panoya kopyalandı."))
+
+    def on_note_export(self, ext):
+        if not self.fence:
+            return
+        fence = self.fence
+        text = fence.note.markdown() if ext == "md" else fence.note.toPlainText()
+        start = os.path.join(os.path.expanduser("~"), "Documents", f"{fence.data['name']}.{ext}")
+        path, _ = QFileDialog.getSaveFileName(None, t("Notu kaydet"), start, f"*.{ext}")
+        if path:
+            try:
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(text)
+                self.app.notify(t("Not kaydedildi: {0}").format(path))
+            except OSError:
+                self.app.notify(t("Not kaydedilemedi."), warn=True)
 
     def on_emoji(self, index):
         if self.fence:

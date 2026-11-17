@@ -75,6 +75,11 @@ ICON_SIZES = ((mark("Küçük"), 28), (mark("Orta"), 36), (mark("Büyük"), 48))
 TOGGLE_ON = "#34c759"
 
 
+# Not kartı kâğıt renkleri (yapışkan not görünümü) ve yazı boyutu farkları (punto)
+PAPERS = ("#ffe680", "#ffc2d1", "#a8d8ff", "#b9ebb4", "#d9c8ff", "#ffd3a1")
+NOTE_SIZES = ((mark("Küçük"), 0), (mark("Orta"), 2), (mark("Büyük"), 4))
+
+
 # Kart başlığına eklenebilen simgeler
 EMOJIS = ("📁", "🎮", "💼", "🎨", "🎵", "📷", "📚", "💻", "⭐")
 
