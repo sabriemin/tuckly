@@ -16,6 +16,8 @@ Tuckly masaüstünüze yarı saydam kartlar koyar. Bir dosyayı ya da kısayolu 
 öğe o kartta gösterilir; dosyanın kendisi yerinden oynamaz. Tuckly çalışırken simge masaüstünde gizlenir ve
 yalnızca kartında görünür. Tuckly kapanınca masaüstünüz olduğu gibi geri gelir.
 
+![Tuckly kartlarıyla örnek masaüstü](docs/screenshots/desktop.png)
+
 ![Görünüm ayarları](docs/screenshots/appearance.png)
 
 ## Özellikler

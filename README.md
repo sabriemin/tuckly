@@ -16,6 +16,8 @@ Tuckly puts translucent cards on your desktop. Drag a file or shortcut onto a ca
 file itself never moves. While Tuckly runs, the icon is hidden from the desktop and appears only in its card.
 When Tuckly quits, your desktop is exactly as it was.
 
+![Sample desktop with Tuckly cards](docs/screenshots/desktop.png)
+
 ![Appearance settings](docs/screenshots/appearance.png)
 
 ## Features
