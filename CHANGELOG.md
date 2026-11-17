@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+
+- The drop highlight around a card no longer stays on after a drag leaves the card or is cancelled
+
 ## 0.1.2
 
 - Docks and taskbar tools that read the window class icon (for example Nectar) now show the Tuckly logo

@@ -19,7 +19,7 @@ from PySide6.QtCore import (
     QUrl,
     Qt,
 )
-from PySide6.QtGui import QColor, QDrag, QFont, QFontMetrics, QGuiApplication, QPainter, QPen
+from PySide6.QtGui import QColor, QCursor, QDrag, QFont, QFontMetrics, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileIconProvider,
@@ -642,11 +642,32 @@ class FenceWindow(QWidget):
         end()
 
     def set_drop_highlight(self, on: bool):
-        """Üzerine dosya sürüklenirken kartın kenarını vurgular."""
+        """Üzerine dosya sürüklenirken kartın kenarını vurgular.
+
+        Sürükleme karttan çıkarken "ayrıldı" bildirimi her zaman gelmez (başlıktan çıkış, Gezgin'den
+        gelen sürükleme, bırakmanın iptali). Bu yüzden vurgu açıkken imleç izlenir: imleç kartın
+        dışındaysa ya da fare düğmesi bırakıldıysa vurgu kendiliğinden kapanır.
+        """
+        if on:
+            for other in self.app.fences:  # aynı anda yalnızca bir kart vurgulanır
+                if other is not self:
+                    other.set_drop_highlight(False)
+            if not hasattr(self, "_drop_watch"):
+                self._drop_watch = QTimer(self)
+                self._drop_watch.setInterval(120)
+                self._drop_watch.timeout.connect(self._check_drop_highlight)
+            self._drop_watch.start()
+        elif hasattr(self, "_drop_watch"):
+            self._drop_watch.stop()
         if self.frame.property("drop") != ("true" if on else "false"):
             self.frame.setProperty("drop", "true" if on else "false")
             self.frame.style().unpolish(self.frame)
             self.frame.style().polish(self.frame)
+
+    def _check_drop_highlight(self):
+        pressed = any(user32.GetAsyncKeyState(vk) & 0x8000 for vk in (0x01, 0x02))  # sol, sağ düğme
+        if not pressed or not self.frameGeometry().contains(QCursor.pos()):
+            self.set_drop_highlight(False)
 
     def nativeEvent(self, event_type, message):
         try:
@@ -995,6 +1016,9 @@ class FenceWindow(QWidget):
 
     def dragEnterEvent(self, e):
         self.list.dragEnterEvent(e)
+
+    def dragLeaveEvent(self, e):
+        self.set_drop_highlight(False)
 
     def dropEvent(self, e):
         self.list.dropEvent(e)
