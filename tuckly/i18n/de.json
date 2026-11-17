@@ -276,5 +276,19 @@
  "+": "+",
  "Yeni Tuckly kartı": "Neue Tuckly-Karte",
  "Tuckly kartına ekle": "Zu Tuckly-Karte hinzufügen",
- "{0} tarafından geliştirilmiştir": "Entwickelt von {0}"
+ "{0} tarafından geliştirilmiştir": "Entwickelt von {0}",
+ "Kartları gizle / göster": "Karten aus- / einblenden",
+ "Kartta ara": "In Karte suchen",
+ "Başlık simgesi": "Titelsymbol",
+ "Simge yok": "Kein Symbol",
+ "Kartları gizleme": "Karten ausblenden",
+ "Masaüstünde boş bir yere çift tıklayın ya da Ctrl+Alt+H'ye basın: tüm kartlar gizlenir, aynı işlemle geri gelir.": "Doppelklicken Sie auf eine freie Stelle des Desktops oder drücken Sie Strg+Alt+H: Alle Karten werden ausgeblendet und auf dieselbe Weise wieder eingeblendet.",
+ "Kartta arama ve simge": "Suche und Titelsymbol",
+ "Kalabalık kartlarda başlıktaki büyüteçle öğe arayın. Kart ayarlarından başlığa bir simge ekleyin.": "In vollen Karten finden Sie Elemente mit der Lupe im Titel. In den Karteneinstellungen können Sie dem Titel ein Symbol hinzufügen.",
+ "Çift tıklayınca kartları gizle": "Karten per Doppelklick ausblenden",
+ "Masaüstünde boş bir yere çift tıklamak tüm kartları gizler; yeniden çift tıklamak geri getirir.": "Ein Doppelklick auf eine freie Stelle des Desktops blendet alle Karten aus, ein weiterer blendet sie wieder ein.",
+ "Kısayol tuşları": "Tastenkürzel",
+ "Ctrl+Alt+H kartları gizler ya da gösterir, Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar.": "Strg+Alt+H blendet die Karten aus oder ein, Strg+Alt+N erstellt eine neue Karte, Strg+Alt+T öffnet die Einstellungen.",
+ "Kartları kenarlara yapıştır": "Karten an Kanten ausrichten",
+ "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "Eine verschobene Karte richtet sich am Bildschirmrand und an anderen Karten aus. Mit gedrückter Alt-Taste frei verschieben."
 }

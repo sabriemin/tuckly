@@ -75,6 +75,10 @@ ICON_SIZES = ((mark("Küçük"), 28), (mark("Orta"), 36), (mark("Büyük"), 48))
 TOGGLE_ON = "#34c759"
 
 
+# Kart başlığına eklenebilen simgeler
+EMOJIS = ("📁", "🎮", "💼", "🎨", "🎵", "📷", "📚", "💻", "⭐")
+
+
 DEFAULT_FONT = "Segoe UI Variable Text"
 
 

@@ -7,7 +7,9 @@ klasör) ve Kilit (kilitler ve kartı kaldırma). Sekmeler sayesinde form kaydı
 import os
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
@@ -20,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from .i18n import t
-from .config import CATEGORIES, ICON_SIZES, SORT_MODES
+from .config import CATEGORIES, EMOJIS, ICON_SIZES, SORT_MODES
 from .theme import appearance
 from .widgets import SwatchRow, Toggle, label, make_group, named, segmented, setting_row
 
@@ -66,6 +68,29 @@ class CardSettings(QWidget):
         page, v = self._tab()
         self.name = QLineEdit()
         self.name.textEdited.connect(self.on_name)
+        # Başlıkta adın önünde gösterilen simge (emoji); ilk düğme "simge yok"
+        name_box = QWidget()
+        nb = QVBoxLayout(name_box)
+        nb.setContentsMargins(0, 0, 0, 0)
+        nb.setSpacing(6)
+        nb.addWidget(self.name)
+        emoji_row = QHBoxLayout()
+        emoji_row.setContentsMargins(0, 0, 0, 0)
+        emoji_row.setSpacing(4)
+        self.emojis = QButtonGroup(self)
+        self._emoji_values = ("",) + EMOJIS
+        for i, value in enumerate(self._emoji_values):
+            b = named(QPushButton(value or "–"), "emoji")
+            b.setCheckable(True)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setFixedSize(27, 26)
+            b.setFont(QFont("Segoe UI Emoji", 10))
+            b.setToolTip(t("Başlık simgesi") if value else t("Simge yok"))
+            self.emojis.addButton(b, i)
+            emoji_row.addWidget(b)
+        emoji_row.addStretch()
+        self.emojis.idClicked.connect(self.on_emoji)
+        nb.addLayout(emoji_row)
 
         # Kartın kendi rengi; "Genel" seçiliyse Görünüm sayfasındaki tema kullanılır
         self.colors = SwatchRow(with_general=True, with_add=False, columns=10)
@@ -87,7 +112,7 @@ class CardSettings(QWidget):
         sort_box, self.sorts = segmented(tuple((title, i) for i, (_, title) in enumerate(SORT_MODES)),
                                          lambda i: self.on_sort(self._sort_keys[i]))
         rows = [
-            setting_row(t("Ad"), below=self.name, icon=""),
+            setting_row(t("Ad"), below=name_box, icon=""),
             setting_row(t("Renk"), t("Bu karta özel renk. Genel: görünüm ayarlarındaki tema."),
                         below=self.colors, value=self.theme_value, icon=""),
             setting_row(t("Opaklık"), t("Bu karta özel saydamlık."), control=self.op_general,
@@ -237,6 +262,8 @@ class CardSettings(QWidget):
         d = f.data
         if force or not self.name.hasFocus():
             self.name.setText(d["name"])
+        emoji = d.get("emoji", "")
+        self.emojis.button(self._emoji_values.index(emoji) if emoji in self._emoji_values else 0).setChecked(True)
         self.colors.set_custom(appearance(self.app.config)["custom_colors"])
         self.colors.set_value(d.get("theme"))
         self.theme_value.setText(self.colors.value_name())
@@ -275,6 +302,11 @@ class CardSettings(QWidget):
     def on_name(self, text):
         if self.fence and text.strip():
             self.fence.data["name"] = text.strip()
+            self._changed()
+
+    def on_emoji(self, index):
+        if self.fence:
+            self.fence.data["emoji"] = self._emoji_values[index]
             self._changed()
 
     def on_theme(self, key):

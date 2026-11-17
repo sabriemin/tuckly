@@ -276,5 +276,19 @@
  "+": "+",
  "Yeni Tuckly kartı": "Nouvelle carte Tuckly",
  "Tuckly kartına ekle": "Ajouter à une carte Tuckly",
- "{0} tarafından geliştirilmiştir": "Développé par {0}"
+ "{0} tarafından geliştirilmiştir": "Développé par {0}",
+ "Kartları gizle / göster": "Masquer / afficher les cartes",
+ "Kartta ara": "Rechercher dans la carte",
+ "Başlık simgesi": "Icône du titre",
+ "Simge yok": "Aucune icône",
+ "Kartları gizleme": "Masquer les cartes",
+ "Masaüstünde boş bir yere çift tıklayın ya da Ctrl+Alt+H'ye basın: tüm kartlar gizlenir, aynı işlemle geri gelir.": "Double-cliquez sur un endroit vide du bureau ou appuyez sur Ctrl+Alt+H : toutes les cartes se masquent et reviennent de la même façon.",
+ "Kartta arama ve simge": "Recherche et icône du titre",
+ "Kalabalık kartlarda başlıktaki büyüteçle öğe arayın. Kart ayarlarından başlığa bir simge ekleyin.": "Dans les cartes chargées, utilisez la loupe du titre pour trouver un élément. Ajoutez une icône au titre depuis les réglages de la carte.",
+ "Çift tıklayınca kartları gizle": "Masquer les cartes par double-clic",
+ "Masaüstünde boş bir yere çift tıklamak tüm kartları gizler; yeniden çift tıklamak geri getirir.": "Un double-clic sur un endroit vide du bureau masque toutes les cartes ; un nouveau double-clic les réaffiche.",
+ "Kısayol tuşları": "Raccourcis clavier",
+ "Ctrl+Alt+H kartları gizler ya da gösterir, Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar.": "Ctrl+Alt+H masque ou affiche les cartes, Ctrl+Alt+N crée une carte, Ctrl+Alt+T ouvre les réglages.",
+ "Kartları kenarlara yapıştır": "Aimanter les cartes aux bords",
+ "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "La carte déplacée s'aligne sur le bord de l'écran et sur les autres cartes. Maintenez Alt pour la déplacer librement."
 }

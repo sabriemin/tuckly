@@ -79,6 +79,11 @@ GUIDE = (
     ("", mark("Otomatik düzenleme"),
      mark("Her karta hangi tür öğelerin yerleşeceğini kategorilerden seçin. Sonra Düzenle sayfasından "
           "kartsız öğeleri tek seferde kartlara yerleştirin.")),
+    ("", mark("Kartları gizleme"),
+     mark("Masaüstünde boş bir yere çift tıklayın ya da Ctrl+Alt+H'ye basın: tüm kartlar gizlenir, "
+          "aynı işlemle geri gelir.")),
+    ("", mark("Kartta arama ve simge"),
+     mark("Kalabalık kartlarda başlıktaki büyüteçle öğe arayın. Kart ayarlarından başlığa bir simge ekleyin.")),
     ("", mark("Çıkış"),
      mark("Tuckly kapanınca gizlenen simgeler masaüstüne geri gelir; dosyalarınız hiçbir zaman taşınmaz.")),
 )
@@ -562,6 +567,15 @@ class ControlPanel(QWidget):
                    t("Bildirim merkezinde bekleyen bildirimi olan uygulamaların simgesinde sayı gösterir. "
                      "İlk açışta Windows izin isteyebilir."),
                    cfg.get("badges", False), app.set_badges, "")] if BADGES_AVAILABLE else []),
+            row(t("Çift tıklayınca kartları gizle"),
+                t("Masaüstünde boş bir yere çift tıklamak tüm kartları gizler; yeniden çift tıklamak geri getirir."),
+                cfg.get("dblclick_hide", True), app.set_dblclick_hide, "\uE7B3"),
+            row(t("Kısayol tuşları"),
+                t("Ctrl+Alt+H kartları gizler ya da gösterir, Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar."),
+                cfg.get("hotkeys", True), app.set_hotkeys, "\uE765"),
+            row(t("Kartları kenarlara yapıştır"),
+                t("Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır."),
+                cfg.get("magnet", True), app.set_magnet, "\uE8A9"),
             row(t("Kartları kilitle"), t("Kartlar yanlışlıkla taşınamaz ve boyutlandırılamaz."),
                 app.locked, app.set_locked, ""),
             row(t("Windows ile başlat"), t("Bilgisayar açıldığında kartlar otomatik gelir."),

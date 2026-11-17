@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Double-click an empty spot on the desktop, or press Ctrl+Alt+H, to hide and show all cards
+- Global shortcuts: Ctrl+Alt+N for a new card, Ctrl+Alt+T for the settings
+- Search inside crowded cards from the magnifier in the card title
+- Optional emoji in front of a card title
+- Moving cards snap to screen edges and to each other (hold Alt to move freely)
+
 ## 0.1.3
 
 - The drop highlight around a card no longer stays on after a drag leaves the card or is cancelled

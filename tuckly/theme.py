@@ -194,6 +194,8 @@ QPushButton#swatch {{ min-width: 20px; max-width: 20px; min-height: 20px; max-he
 QPushButton#swatch:checked {{ border: 2px solid rgb({fg}); }}
 QPushButton#pill {{ padding: 3px 10px; border-radius: 11px; font-size: 8.5pt; }}
 QPushButton#pill:checked {{ background: {acc}; color: {on}; border-color: {acc}; }}
+QPushButton#emoji {{ padding: 0; border-radius: 8px; }}
+QPushButton#emoji:checked {{ border: 2px solid {acc}; }}
 QSlider::groove:horizontal {{ height: 4px; background: rgba({fg},34); border-radius: 2px; }}
 QSlider::sub-page:horizontal {{ background: {acc}; border-radius: 2px; }}
 QSlider::handle:horizontal {{ background: #ffffff; border: 1px solid rgba(0,0,0,40); width: 16px;

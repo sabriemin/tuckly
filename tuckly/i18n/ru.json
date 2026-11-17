@@ -276,5 +276,19 @@
  "+": "+",
  "Yeni Tuckly kartı": "Новая карточка Tuckly",
  "Tuckly kartına ekle": "Добавить в карточку Tuckly",
- "{0} tarafından geliştirilmiştir": "Разработчик: {0}"
+ "{0} tarafından geliştirilmiştir": "Разработчик: {0}",
+ "Kartları gizle / göster": "Скрыть / показать карточки",
+ "Kartta ara": "Поиск в карточке",
+ "Başlık simgesi": "Значок заголовка",
+ "Simge yok": "Без значка",
+ "Kartları gizleme": "Скрытие карточек",
+ "Masaüstünde boş bir yere çift tıklayın ya da Ctrl+Alt+H'ye basın: tüm kartlar gizlenir, aynı işlemle geri gelir.": "Дважды щёлкните по пустому месту рабочего стола или нажмите Ctrl+Alt+H: все карточки скроются, тем же действием они возвращаются.",
+ "Kartta arama ve simge": "Поиск и значок заголовка",
+ "Kalabalık kartlarda başlıktaki büyüteçle öğe arayın. Kart ayarlarından başlığa bir simge ekleyin.": "В заполненных карточках ищите элементы с помощью лупы в заголовке. Значок заголовка добавляется в параметрах карточки.",
+ "Çift tıklayınca kartları gizle": "Скрывать карточки двойным щелчком",
+ "Masaüstünde boş bir yere çift tıklamak tüm kartları gizler; yeniden çift tıklamak geri getirir.": "Двойной щелчок по пустому месту рабочего стола скрывает все карточки, повторный возвращает их.",
+ "Kısayol tuşları": "Сочетания клавиш",
+ "Ctrl+Alt+H kartları gizler ya da gösterir, Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar.": "Ctrl+Alt+H скрывает или показывает карточки, Ctrl+Alt+N создаёт карточку, Ctrl+Alt+T открывает параметры.",
+ "Kartları kenarlara yapıştır": "Прилипание карточек к краям",
+ "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "Перемещаемая карточка выравнивается по краю экрана и другим карточкам. Удерживайте Alt для свободного перемещения."
 }

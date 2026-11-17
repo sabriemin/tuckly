@@ -54,6 +54,7 @@ from .widgets import StyleTile, Toggle
 from .card import FenceWindow
 from .notifications import AVAILABLE as BADGES_AVAILABLE, NotificationWatcher
 from .panel import ControlPanel
+from .shortcuts import DesktopClickWatcher, Hotkeys
 from .tour import Tour
 from .updater import UpdateChecker, is_newer
 
@@ -71,6 +72,7 @@ class FencesApp:
         set_language(self.config.get("language"))  # None: Windows'un dili
         self.locked = self.config.get("locked", False)
         self.fences: list[FenceWindow] = []
+        self.cards_hidden = False  # tüm kartlar geçici olarak gizli (çift tıklama / kısayol)
 
         if not self.config.get("fences"):
             self.create_defaults()
@@ -129,6 +131,14 @@ class FencesApp:
         self.tray.show()
         qapp.aboutToQuit.connect(self.on_quit)
 
+        # Masaüstünde boş yere çift tıklama ve genel kısayol tuşları (Ctrl+Alt+H / N / T)
+        self.click_watcher = DesktopClickWatcher()
+        self.click_watcher.double_clicked.connect(self.toggle_cards)
+        self.hotkeys = Hotkeys(qapp, {"H": self.toggle_cards, "N": self.new_card_at_cursor, "T": self.show_panel})
+        if not _override:  # testler gerçek fareyi ve klavyeyi dinlemesin
+            self.click_watcher.set_enabled(self.config.get("dblclick_hide", True))
+            self.hotkeys.set_enabled(self.config.get("hotkeys", True))
+
     def build_tray_menu(self):
         self.tray.setToolTip(APP_NAME + t(" — tıklayın: kontrol paneli"))
         m = QMenu()
@@ -136,6 +146,7 @@ class FencesApp:
         m.addAction(t("Kontrol paneli"), self.show_panel)
         m.addAction(t("Görünüm"), lambda: self.show_panel(page=1))
         m.addAction(t("Masaüstünü düzenle"), lambda: self.show_panel(page=2))
+        m.addAction(t("Kartları gizle / göster"), self.toggle_cards)
         m.addSeparator()
         m.addAction(t("Çıkış"), self.quit)
         self.tray_menu = m
@@ -309,7 +320,7 @@ class FencesApp:
         if self.rest:
             self.rest.refresh()
         for f in self.fences:
-            if f.kind != "rest" or self.config.get("hide_icons"):
+            if not self.cards_hidden and (f.kind != "rest" or self.config.get("hide_icons")):
                 f.show()
 
     def check_shell(self):
@@ -547,6 +558,8 @@ class FencesApp:
 
     # ---- Kart yönetimi
     def new_fence(self, name=None, folder=None, pos=None):
+        if self.cards_hidden:  # yeni kart görünsün
+            self.set_cards_hidden(False)
         if name is None:
             base, i = t("Yeni Kart"), 2
             names = {f.data["name"] for f in self.fences}
@@ -670,7 +683,32 @@ class FencesApp:
         set_desktop_icons_visible(not on)
         if self.rest:  # simgeler gizliyken kartsız öğeler "Diğer" kartında görünür
             self.rest.refresh()
-            self.rest.setVisible(on)
+            self.rest.setVisible(on and not self.cards_hidden)
+
+    # ---- Kartları geçici olarak gizleme, kısayollar ve yapıştırma
+    def set_cards_hidden(self, hidden: bool):
+        """Tüm kartları gizler ya da geri getirir. Karttaki öğeler masaüstünde gizli kalır: temiz masaüstü."""
+        self.cards_hidden = hidden
+        self.close_popups()
+        for f in self.fences:
+            f.setVisible(not hidden and (f.kind != "rest" or bool(self.config.get("hide_icons"))))
+
+    def toggle_cards(self):
+        self.set_cards_hidden(not self.cards_hidden)
+
+    def set_dblclick_hide(self, on):
+        self.config["dblclick_hide"] = on
+        self.save()
+        self.click_watcher.set_enabled(on and not _override)
+
+    def set_hotkeys(self, on):
+        self.config["hotkeys"] = on
+        self.save()
+        self.hotkeys.set_enabled(on and not _override)
+
+    def set_magnet(self, on):
+        self.config["magnet"] = on
+        self.save()
 
     def icon_for(self, path) -> QIcon:
         """Dosyanın simgesi; dosya değişmediyse önbellekten gelir."""
@@ -866,6 +904,8 @@ class FencesApp:
             self.sync_hidden(False)
             self.save()
         self.tray.hide()
+        self.hotkeys.set_enabled(False)
+        self.click_watcher.set_enabled(False)
 
 
 def run_cleanup(delete_settings=False):

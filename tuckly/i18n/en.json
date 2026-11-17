@@ -276,5 +276,19 @@
  "+": "+",
  "Yeni Tuckly kartı": "New Tuckly card",
  "Tuckly kartına ekle": "Add to Tuckly card",
- "{0} tarafından geliştirilmiştir": "Developed by {0}"
+ "{0} tarafından geliştirilmiştir": "Developed by {0}",
+ "Kartları gizle / göster": "Hide / show cards",
+ "Kartta ara": "Search in card",
+ "Başlık simgesi": "Title icon",
+ "Simge yok": "No icon",
+ "Kartları gizleme": "Hiding the cards",
+ "Masaüstünde boş bir yere çift tıklayın ya da Ctrl+Alt+H'ye basın: tüm kartlar gizlenir, aynı işlemle geri gelir.": "Double-click an empty spot on the desktop or press Ctrl+Alt+H: all cards hide, and the same action brings them back.",
+ "Kartta arama ve simge": "Search and title icon",
+ "Kalabalık kartlarda başlıktaki büyüteçle öğe arayın. Kart ayarlarından başlığa bir simge ekleyin.": "In crowded cards, use the magnifier in the title to find an item. Add an icon to the title from the card settings.",
+ "Çift tıklayınca kartları gizle": "Hide cards on double-click",
+ "Masaüstünde boş bir yere çift tıklamak tüm kartları gizler; yeniden çift tıklamak geri getirir.": "Double-clicking an empty spot on the desktop hides all cards; double-clicking again brings them back.",
+ "Kısayol tuşları": "Keyboard shortcuts",
+ "Ctrl+Alt+H kartları gizler ya da gösterir, Ctrl+Alt+N yeni kart açar, Ctrl+Alt+T ayarları açar.": "Ctrl+Alt+H hides or shows the cards, Ctrl+Alt+N creates a new card, Ctrl+Alt+T opens the settings.",
+ "Kartları kenarlara yapıştır": "Snap cards to edges",
+ "Taşınan kart ekran kenarına ve diğer kartlara hizalanır. Alt tuşu basılıyken serbest taşınır.": "A card being moved aligns to the screen edge and to other cards. Hold Alt to move it freely."
 }

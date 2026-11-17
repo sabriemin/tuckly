@@ -324,8 +324,16 @@ class TitleBar(QWidget):
         self.lock = named(QLabel("\uE72E"), "titleLock")  # kilit simgesi (Segoe MDL2 Assets)
         self.lock.setToolTip(t("Bu kartta kilit açık"))
         self.lock.hide()
+        self.find = named(QLineEdit(), "titleEdit")  # kart içinde arama; büyüteç düğmesiyle açılır
+        self.find.hide()
+        self.find.setPlaceholderText(t("Kartta ara"))
+        self.find.setClearButtonEnabled(True)
+        self.find.textChanged.connect(fence.apply_filter)
+        self.find.editingFinished.connect(self.finish_search)
+        self.find.installEventFilter(self)
         lay.addWidget(self.text)
         lay.addWidget(self.edit, 1)
+        lay.addWidget(self.find, 1)
         lay.addWidget(self.pencil)
         lay.addWidget(self.count)
         lay.addWidget(self.lock)
@@ -339,10 +347,17 @@ class TitleBar(QWidget):
         self.fold.setToolTip(t("Daralt / genişlet"))
         self.fold.setCursor(Qt.PointingHandCursor)
         self.fold.clicked.connect(fence.toggle_collapsed)
+        self.search = QToolButton(text="\uE721")  # yalnızca kalabalık kartta görünür
+        self.search.setToolTip(t("Kartta ara"))
+        self.search.setCursor(Qt.PointingHandCursor)
+        self.search.clicked.connect(self.start_search)
+        self.search.hide()
+        lay.addWidget(self.search)
         lay.addWidget(self.gear)
         lay.addWidget(self.fold)
         self._drag = None
         self._moved = False
+        self._snapped = (False, False)  # taşırken yatay/dikey olarak bir kenara yapıştı mı
         self._name = ""
         self._hover = False
 
@@ -352,11 +367,13 @@ class TitleBar(QWidget):
         self.fit()
 
     def fit(self):
-        if not self.edit.isHidden():
+        if not self.edit.isHidden() or not self.find.isHidden():
             return
         lay = self.layout()
         m, sp = lay.contentsMargins(), lay.spacing()
         fixed = m.left() + m.right() + 26 + 26 + 2 * sp  # ayar ve daralt düğmeleri
+        if not self.search.isHidden():
+            fixed += 26 + sp
         if self.count.text():
             self.count.adjustSize()
             fixed += self.count.sizeHint().width() + sp
@@ -407,15 +424,42 @@ class TitleBar(QWidget):
             self.fence.data["name"] = name
             self.fence.app.fence_changed(self.fence)
 
+    # ---- Kart içinde arama: yazdıkça adı uymayan öğeler gizlenir
+    def start_search(self):
+        if not self.find.isHidden():
+            self.finish_search(True)
+            return
+        self.finish_rename(False)
+        for w in (self.text, self.pencil, self.count):
+            w.hide()
+        self.find.show()
+        self.fence.activateWindow()
+        self.find.setFocus()
+
+    def finish_search(self, force=False):
+        """Arama kutusu boşsa (ya da Esc ile) kapanır; yazı varken süzme açık kalır."""
+        if self.find.isHidden() or (self.find.text().strip() and not force):
+            return
+        self.find.clear()
+        self.find.hide()
+        self.text.show()
+        self.count.show()
+        self.fit()
+
     def eventFilter(self, obj, e):
-        if obj is self.edit and e.type() == QEvent.KeyPress and e.key() == Qt.Key_Escape:
-            self.finish_rename(False)
-            return True
+        if e.type() == QEvent.KeyPress and e.key() == Qt.Key_Escape:
+            if obj is self.edit:
+                self.finish_rename(False)
+                return True
+            if obj is self.find:
+                self.finish_search(True)
+                return True
         return super().eventFilter(obj, e)
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton and not self.fence.app.locked and not self.fence.data.get("lock_pos"):
             self._drag = e.globalPosition().toPoint() - self.fence.frameGeometry().topLeft()
+            self._snapped = (False, False)
             self.setCursor(Qt.ClosedHandCursor)
 
     def mouseMoveEvent(self, e):
@@ -423,7 +467,12 @@ class TitleBar(QWidget):
             if not self._moved:  # sürükleme başladı: bulanıklık taşırken takılma yapar, geçici olarak kapat
                 self._moved = True
                 self.fence.suspend_blur()
-            self.fence.move(e.globalPosition().toPoint() - self._drag)
+            pos = e.globalPosition().toPoint() - self._drag
+            self._snapped = (False, False)
+            # Ekran kenarına ve diğer kartlara yapıştırma; Alt basılıyken serbest taşınır
+            if self.fence.app.config.get("magnet", True) and not e.modifiers() & Qt.AltModifier:
+                pos, self._snapped = self.fence.magnet(pos)
+            self.fence.move(pos)
 
     def mouseReleaseEvent(self, e):
         if self._drag is not None:
@@ -433,7 +482,8 @@ class TitleBar(QWidget):
                 self._moved = False
                 self.fence.resume_blur()
             pos = self.fence.pos()
-            self.fence.move(snap(pos.x()), snap(pos.y()))
+            sx, sy = self._snapped  # bir kenara yapışan eksen ızgaraya yuvarlanmaz: hizası bozulmasın
+            self.fence.move(pos.x() if sx else snap(pos.x()), pos.y() if sy else snap(pos.y()))
             self.fence.store_geometry()
 
     def mouseDoubleClickEvent(self, e):
@@ -447,7 +497,7 @@ class SettingsPopup(QWidget):
     Kartlar masaüstünün en altında durduğu için ayarlar kartın içinde değil burada gösterilir.
     Pencere engelleyici değildir; dışına tıklanınca, Esc'e basılınca ya da "Bitti" ile kapanır."""
 
-    W, H, PAD = 380, 640, 0
+    W, H, PAD = 380, 700, 0
 
     def __init__(self, fence):
         super().__init__(None, Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
@@ -565,6 +615,7 @@ class FenceWindow(QWidget):
         self._blur = False
         self._suspended = False      # taşıma/boyutlandırma sırasında bulanıklık geçici olarak kapalı
         self._force_refresh = False
+        self._filter = ""      # kart içi arama metni (küçük harf)
         self.popup = None      # kart ayarları penceresi (ilk açılışta oluşturulur)
         self.settings = None   # o penceredeki ayar formu
 
@@ -681,6 +732,40 @@ class FenceWindow(QWidget):
             pass
         return False, 0
 
+    def magnet(self, pos, gap=10, reach=12):
+        """Taşınan kartın konumunu yakındaki ekran kenarına ya da komşu kartın kenarına çeker.
+        Dönüş: (konum, (yatay yapıştı mı, dikey yapıştı mı))."""
+        w, h = self.width(), self.height()
+        screen = (QGuiApplication.screenAt(QPoint(pos.x() + w // 2, pos.y() + h // 2))
+                  or QGuiApplication.primaryScreen())
+        geo = screen.availableGeometry()
+        xs = [geo.left() + gap, geo.right() + 1 - gap - w]
+        ys = [geo.top() + gap, geo.bottom() + 1 - gap - h]
+        for other in self.app.fences:
+            if other is self or not other.isVisible():
+                continue
+            r = other.frameGeometry()
+            left, top, right, bottom = r.left(), r.top(), r.right() + 1, r.bottom() + 1
+            if pos.y() < bottom + 3 * gap and pos.y() + h > top - 3 * gap:    # dikeyde yakın: yan yana hizala
+                xs += [left, right - w, right + gap, left - gap - w]
+            if pos.x() < right + 3 * gap and pos.x() + w > left - 3 * gap:    # yatayda yakın: alt alta hizala
+                ys += [top, bottom - h, bottom + gap, top - gap - h]
+
+        def pick(value, candidates):
+            best = min(candidates, key=lambda c: abs(c - value))
+            return (best, True) if abs(best - value) <= reach else (value, False)
+
+        (x, sx), (y, sy) = pick(pos.x(), xs), pick(pos.y(), ys)
+        return QPoint(x, y), (sx, sy)
+
+    def apply_filter(self, text=None):
+        """Kart içi arama: adı aranan metni içermeyen öğeleri gizler."""
+        if text is not None:
+            self._filter = text.strip().lower()
+        for i in range(self.list.count()):
+            it = self.list.item(i)
+            it.setHidden(bool(self._filter) and self._filter not in it.text().lower())
+
     def ensure_on_screen(self):
         if QGuiApplication.screenAt(self.frameGeometry().center()) is None:
             geo = QGuiApplication.primaryScreen().availableGeometry()
@@ -748,7 +833,7 @@ class FenceWindow(QWidget):
         self.list.setDragEnabled(not locked)
         self.list.setEditTriggers(QAbstractItemView.NoEditTriggers if locked else QAbstractItemView.EditKeyPressed)
         self.title.lock.setVisible(bool(d.get("lock_pos") or d.get("lock_size") or locked))
-        self.title.set_name(d["name"])
+        self.title.set_name(f"{d['emoji']} {d['name']}" if d.get("emoji") else d["name"])
 
     def set_collapsed(self, collapsed: bool, save=True):
         self.data["collapsed"] = collapsed
@@ -882,7 +967,10 @@ class FenceWindow(QWidget):
                 it.setSelected(True)
         n = self.list.count()
         self.title.count.setText(str(n) if n else "")
+        self.title.search.setVisible(n >= 6 or bool(self._filter))  # az öğeli kartta aramaya gerek yok
         self.title.fit()
+        if self._filter:
+            self.apply_filter()
         self.list.setVisible(n > 0)
         self.empty.setVisible(n == 0)
         self._loading = False
